@@ -11,10 +11,7 @@ import {
   LifecycleResponseFactory,
   OnPreAuthToolkit,
 } from 'kibana/server';
-import {
-  LIMITED_CONCURRENCY_ENDPOINT_ROUTE_TAG,
-  LIMITED_CONCURRENCY_ENDPOINT_COUNT,
-} from '../../../common/endpoint/constants';
+import { LIMITED_CONCURRENCY_ROUTE_TAG_PREFIX } from '../../common/constants';
 
 class MaxCounter {
   constructor(private readonly max: number = 1) {}
@@ -37,19 +34,64 @@ class MaxCounter {
   }
 }
 
-function shouldHandleRequest(request: KibanaRequest) {
+function getRouteConcurrencyTag(request: KibanaRequest) {
   const tags = request.route.options.tags;
-  return tags.includes(LIMITED_CONCURRENCY_ENDPOINT_ROUTE_TAG);
+  return tags.find((tag) => tag.startsWith(LIMITED_CONCURRENCY_ROUTE_TAG_PREFIX));
 }
 
+function shouldHandleRequest(request: KibanaRequest) {
+  return getRouteConcurrencyTag(request) !== undefined;
+}
+
+function getRouteMaxConcurrency(request: KibanaRequest) {
+  const tag = getRouteConcurrencyTag(request);
+  return parseInt(tag?.split(':')[2] || '', 10);
+}
+
+const initCounterMap = () => {
+  const counterMap = new Map<string, MaxCounter>();
+  const getCounter = (request: KibanaRequest) => {
+    const path = request.route.path;
+
+    if (!counterMap.has(path)) {
+      const maxCount = getRouteMaxConcurrency(request);
+      if (isNaN(maxCount)) {
+        return null;
+      }
+
+      counterMap.set(path, new MaxCounter(maxCount));
+    }
+
+    return counterMap.get(path) as MaxCounter;
+  };
+
+  return {
+    getCounter,
+  };
+};
+
+/**
+ * This method limits concurrency for routes
+ * It checks if route has tag that begins LIMITED_CONCURRENCY_ROUTE_TAG_PREFIX prefix
+ * If tag is found and has concurrency number separated by colon ':', this max concurrency number will be applied to the route
+ * If tag is malformed, i.e. not valid concurrency number, max concurency will not be applied to the route
+ * @param core CoreSetup Context passed to the `setup` method of `standard` plugins.
+ */
 export function registerLimitedConcurrencyRoutes(core: CoreSetup) {
-  const counter = new MaxCounter(LIMITED_CONCURRENCY_ENDPOINT_COUNT);
+  const countersMap = initCounterMap();
+
   core.http.registerOnPreAuth(function preAuthHandler(
     request: KibanaRequest,
     response: LifecycleResponseFactory,
     toolkit: OnPreAuthToolkit
   ) {
     if (!shouldHandleRequest(request)) {
+      return toolkit.next();
+    }
+
+    const counter = countersMap.getCounter(request);
+
+    if (counter === null) {
       return toolkit.next();
     }
 
@@ -62,9 +104,8 @@ export function registerLimitedConcurrencyRoutes(core: CoreSetup) {
 
     counter.increase();
 
-    // requests.events.aborted$ has a bug (but has test which explicitly verifies) where it's fired even when the request completes
-    // https://github.com/elastic/kibana/pull/70495#issuecomment-656288766
-    request.events.aborted$.toPromise().then(() => {
+    // when request is completed or aborted, decrease counter
+    request.events.completed$.subscribe(() => {
       counter.decrease();
     });
 
