@@ -371,6 +371,16 @@ export const useBulkActions = ({
               icon: undefined,
             },
             {
+              key: i18n.BULK_ACTION_UPDATE_RULE_SCHEDULES,
+              name: i18n.BULK_ACTION_UPDATE_RULE_SCHEDULES,
+              'data-test-subj': 'updateRuleSchedulesBulk',
+              disabled: isEditDisabled,
+              onClick: handleBulkEdit(BulkActionEditType.set_schedule),
+              toolTipContent: missingActionPrivileges ? i18n.EDIT_RULE_SETTINGS_TOOLTIP : undefined,
+              toolTipPosition: 'right',
+              icon: undefined,
+            },
+            {
               key: i18n.BULK_ACTION_EXPORT,
               name: i18n.BULK_ACTION_EXPORT,
               'data-test-subj': 'exportRuleBulk',

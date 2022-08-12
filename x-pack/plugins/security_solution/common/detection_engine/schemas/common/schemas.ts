@@ -379,6 +379,7 @@ export enum BulkActionEditType {
   'delete_index_patterns' = 'delete_index_patterns',
   'set_index_patterns' = 'set_index_patterns',
   'set_timeline' = 'set_timeline',
+  'set_schedule' = 'set_schedule',
 }
 
 const bulkActionEditPayloadTags = t.type({
@@ -418,16 +419,34 @@ const bulkActionEditPayloadTimeline = t.type({
 
 export type BulkActionEditPayloadTimeline = t.TypeOf<typeof bulkActionEditPayloadTimeline>;
 
+const bulkActionEditPayloadSchedule = t.type({
+  type: t.literal(BulkActionEditType.set_schedule),
+  value: t.type({
+    interval,
+    from: t.string,
+    to: t.string,
+    meta: t.type({
+      from: t.string,
+    }),
+  }),
+});
+
+export type BulkActionEditPayloadSchedule = t.TypeOf<typeof bulkActionEditPayloadSchedule>;
+
 export const bulkActionEditPayload = t.union([
   bulkActionEditPayloadTags,
   bulkActionEditPayloadIndexPatterns,
   bulkActionEditPayloadTimeline,
+  bulkActionEditPayloadSchedule,
 ]);
 
 export type BulkActionEditPayload = t.TypeOf<typeof bulkActionEditPayload>;
 
-export type BulkActionEditForRuleAttributes = BulkActionEditPayloadTags;
+export type BulkActionEditForRuleAttributes =
+  | BulkActionEditPayloadTags
+  | BulkActionEditPayloadSchedule;
 
 export type BulkActionEditForRuleParams =
   | BulkActionEditPayloadIndexPatterns
-  | BulkActionEditPayloadTimeline;
+  | BulkActionEditPayloadTimeline
+  | BulkActionEditPayloadSchedule;

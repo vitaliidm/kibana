@@ -90,6 +90,19 @@ const applyBulkActionEditToRuleParams = (
         timelineTitle: action.value.timeline_title || undefined,
       };
       break;
+
+    // schedule action
+    case BulkActionEditType.set_schedule:
+      ruleParams = {
+        ...ruleParams,
+        from: action.value.from,
+        to: action.value.to,
+        meta: {
+          ...ruleParams.meta,
+          from: action.value.meta.from,
+        },
+      };
+      break;
   }
 
   return ruleParams;

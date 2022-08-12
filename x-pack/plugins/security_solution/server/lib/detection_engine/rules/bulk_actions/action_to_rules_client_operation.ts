@@ -42,6 +42,13 @@ export const bulkEditActionToRulesClientOperation = (
         value: action.value,
       };
 
+    case BulkActionEditType.set_schedule:
+      return {
+        field: 'schedule',
+        operation: 'set',
+        value: { interval: action.value.interval },
+      };
+
     default:
       return assertUnreachable(action.type);
   }

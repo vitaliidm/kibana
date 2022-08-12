@@ -53,5 +53,13 @@ export const computeDryRunPayload = (
           value: { timeline_id: '', timeline_title: '' },
         },
       ];
+
+    case BulkActionEditType.set_schedule:
+      return [
+        {
+          type: editAction,
+          value: { from: 'now-600s', to: 'now', interval: '5m', meta: { from: '5m' } },
+        },
+      ];
   }
 };
