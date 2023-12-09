@@ -862,6 +862,8 @@
     "@opentelemetry/sdk-metrics-base": "^0.31.0",
     "@opentelemetry/semantic-conventions": "^1.4.0",
     "@reduxjs/toolkit": "1.7.2",
+    "@reportportal/agent-js-cypress": "^5.1.4",
+    "@reportportal/agent-js-mocha": "^5.0.3",
     "@slack/webhook": "^5.0.4",
     "@smithy/eventstream-codec": "^2.0.12",
     "@smithy/util-utf8": "^2.0.0",

@@ -110,30 +110,36 @@ describe.skip('Enrichment', { tags: ['@ess', '@serverless'] }, () => {
         deleteRiskEngineConfiguration();
       });
 
-      it('Should has enrichment fields from legacy risk', function () {
-        cy.get(ALERTS_COUNT)
-          .invoke('text')
-          .should('match', /^[1-9].+$/); // Any number of alerts
-        cy.get(HOST_RISK_HEADER_COLUMN).contains('host.risk.calculated_level');
-        cy.get(USER_RISK_HEADER_COLUMN).contains('user.risk.calculated_level');
-        scrollAlertTableColumnIntoView(HOST_RISK_COLUMN);
-        cy.get(HOST_RISK_COLUMN).contains('Critical');
-        scrollAlertTableColumnIntoView(USER_RISK_COLUMN);
-        cy.get(USER_RISK_COLUMN).contains('High');
-        scrollAlertTableColumnIntoView(ACTION_COLUMN);
-        expandFirstAlert();
-        cy.get(ENRICHED_DATA_ROW).contains('Critical');
-        cy.get(ENRICHED_DATA_ROW).contains(CURRENT_HOST_RISK_LEVEL);
-        cy.get(ENRICHED_DATA_ROW).contains('Low').should('not.exist');
-        cy.get(ENRICHED_DATA_ROW).contains(ORIGINAL_HOST_RISK_LEVEL).should('not.exist');
+      it(
+        'Should has enrichment fields from legacy risk',
+        {
+          tags: ['@ess', '@serverlessQA'],
+        },
+        function () {
+          cy.get(ALERTS_COUNT)
+            .invoke('text')
+            .should('match', /^[1-9].+$/); // Any number of alerts
+          cy.get(HOST_RISK_HEADER_COLUMN).contains('host.risk.calculated_level');
+          cy.get(USER_RISK_HEADER_COLUMN).contains('user.risk.calculated_level');
+          scrollAlertTableColumnIntoView(HOST_RISK_COLUMN);
+          cy.get(HOST_RISK_COLUMN).contains('Critical');
+          scrollAlertTableColumnIntoView(USER_RISK_COLUMN);
+          cy.get(USER_RISK_COLUMN).contains('High');
+          scrollAlertTableColumnIntoView(ACTION_COLUMN);
+          expandFirstAlert();
+          cy.get(ENRICHED_DATA_ROW).contains('Critical');
+          cy.get(ENRICHED_DATA_ROW).contains(CURRENT_HOST_RISK_LEVEL);
+          cy.get(ENRICHED_DATA_ROW).contains('Low').should('not.exist');
+          cy.get(ENRICHED_DATA_ROW).contains(ORIGINAL_HOST_RISK_LEVEL).should('not.exist');
 
-        closeAlertFlyout();
-        cy.task('esArchiverUnload', 'risk_scores_new');
-        cy.task('esArchiverLoad', { archiveName: 'risk_scores_new_updated' });
-        expandFirstAlert();
-        cy.get(ENRICHED_DATA_ROW).contains('Low');
-        cy.get(ENRICHED_DATA_ROW).contains(ORIGINAL_HOST_RISK_LEVEL);
-      });
+          closeAlertFlyout();
+          cy.task('esArchiverUnload', 'risk_scores_new');
+          cy.task('esArchiverLoad', { archiveName: 'risk_scores_new_updated' });
+          expandFirstAlert();
+          cy.get(ENRICHED_DATA_ROW).contains('Low');
+          cy.get(ENRICHED_DATA_ROW).contains(ORIGINAL_HOST_RISK_LEVEL);
+        }
+      );
     });
   });
 });
