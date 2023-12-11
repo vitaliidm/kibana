@@ -103,7 +103,7 @@ export const allowedExperimentalValues = Object.freeze({
    * Enables the new user details flyout displayed on the Alerts page and timeline.
    *
    **/
-  newUserDetailsFlyout: false,
+  newUserDetailsFlyout: true,
 
   /**
    * Enable risk engine client and initialisation of datastream, component templates and mappings
