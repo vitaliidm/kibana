@@ -108,7 +108,7 @@ export const allowedExperimentalValues = Object.freeze({
    * Enables the new host details flyout displayed on the Alerts table.
    *
    **/
-  newHostDetailsFlyout: false,
+  newHostDetailsFlyout: true,
 
   /**
    * Enable risk engine client and initialisation of datastream, component templates and mappings
