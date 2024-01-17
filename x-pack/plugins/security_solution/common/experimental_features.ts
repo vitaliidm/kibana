@@ -152,7 +152,7 @@ export const allowedExperimentalValues = Object.freeze({
   /*
    * Enables experimental Entity Analytics Asset Criticality feature
    */
-  entityAnalyticsAssetCriticalityEnabled: false,
+  entityAnalyticsAssetCriticalityEnabled: true,
 
   /*
    * Enables experimental Experimental S1 integration data to be available in Analyzer
