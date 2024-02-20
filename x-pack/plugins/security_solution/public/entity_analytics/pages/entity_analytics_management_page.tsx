@@ -39,6 +39,7 @@ export const EntityAnalyticsManagementPage = () => {
           <RiskScorePreviewSection privileges={privileges} />
         </EuiFlexItem>
       </EuiFlexGroup>
+      {/* comment to trigger CI build */}
     </>
   );
 };
