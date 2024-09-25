@@ -78,6 +78,9 @@ export const addPropertiesToMapping = (
 ): MappingTypeMapping => {
   return {
     ...mapping,
+    _source: {
+      mode: 'synthetic',
+    },
     properties: {
       ...mapping.properties,
       ...properties,

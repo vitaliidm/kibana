@@ -82,6 +82,12 @@ describe('robustIsPathValid', () => {
     expect(robustIsPathValid('a.b.c.d', { a: { 'b.c': { d: {} } } })).toEqual(true);
   });
 
+  test.only('multiple entries', () => {
+    expect(robustIsPathValid('a.b.c', { a: { 'b.c': {}, 'b.d': false }, 'a.b.e': true })).toEqual(
+      true
+    );
+  });
+
   test('not valid when using dot notation and array is present in source on the last level', () => {
     expect(robustIsPathValid('a.b.c', { a: { 'b.c': [] } })).toEqual(false);
     expect(robustIsPathValid('a.b.c', { 'a.b': { c: [] } })).toEqual(false);

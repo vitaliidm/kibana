@@ -72,84 +72,22 @@ ${HORIZONTAL_LINE}
        * START Custom data loader logic
        */
 
-      // Replace this code with whatever you want!
-      // const ruleCopies = duplicateRuleParams(basicRule, 200);
-      // const functions = ruleCopies.map((rule) => () => detectionsClient.createRule({ body: rule }));
-      // await concurrentlyExec(functions);
-      //  const index = 'test-data-10k-nested-fields';
-      //  const index = 'test-data-5k-fields-synthetic-source';
-      // const index = 'test-data-5k-fields-synthetic-source-10-alerts';
-
-      const timestamp = new Date('2024-08-21T20:36:37.114Z');
-      const response = await esClient.indices.create({
-        index,
-        mappings: addPropertiesToMapping(
-          getEcsMapping(),
-          generateLargeMappingProperties({ size: 10000 })
-        ),
-        settings: getSettings({ maxFields: 20000 }),
-      });
-
-      const docs = range(10).map((idx) => {
-        // const doc = buildLargeDocument({
-        //   numFields: 5000,
-        //   fieldSize: 5,
-        // });
-        // addTimestampToDoc({
-        //   timestamp: new Date(timestamp.getTime() + idx),
-        //   doc,
-        // });
-        // large nested
-        const doc = buildLargeNestedDocument({ fieldsPerObject: 10, levels: 3, fieldSize: 5 });
-        addTimestampToDoc({
-          timestamp: new Date(timestamp.getTime() + idx),
-          doc,
-        });
-        // addFieldToDoc({
-        //   fieldName: 'host.name',
-        //   fieldValue: 'test host',
-        //   doc,
-        // });
-        addFieldToDoc({
-          fieldName: 'host.name',
-          fieldValue: `test`,
-          doc,
-        });
-        return doc;
-      });
-
-      for (let i = 0; i < 2; i++) {
-        const d = Date.now();
-
-        await esClient.bulk({
-          index,
-          operations: docs.flatMap((doc) => [{ index: {} }, doc]),
-        });
-        console.log('end', i, Date.now() - d);
-      }
-      // */
-
-      // listsClient.findLists({ query: {} });
-      // exceptionsClient.findExceptionLists({ query: {} });
-
-      // esClient.indices.exists({ index: 'test' });
-
       // PREVIEW
-      // const previewPromises = range(1).map(
-      //   (idx) => () =>
-      //     detectionsClient.rulePreview({
-      //       body: {
-      //         ...getBasicRuleMetadata(),
-      //         type: 'query',
-      //         timeframeEnd: '2024-08-21T20:37:37.114Z',
-      //         invocationCount: 1,
-      //         from: 'now-6m',
-      //         interval: '5m',
-      //         index: [index],
-      //         query: '*',
-      //       },
-      //     })
-      // );
+      const previewPromises = range(1).map(
+        (idx) => () =>
+          detectionsClient.rulePreview({
+            body: {
+              ...getBasicRuleMetadata(),
+              type: 'query',
+              timeframeEnd: '2024-08-21T20:37:37.114Z',
+              invocationCount: 1,
+              from: 'now-6m',
+              interval: '5m',
+              index: [index],
+              query: 'host.name:"test host"',
+            },
+          })
+      );
 
       // PREVIEW packetbeat
       // const previewPromises = range(10).map(
@@ -168,11 +106,11 @@ ${HORIZONTAL_LINE}
       //     })
       // );
 
-      // const results = (await concurrentlyExec(previewPromises, 1)).map(
-      //   (result) => result.data.logs
-      // );
-      // console.log(JSON.stringify(results));
-      // console.log(`\n${results[0][0].duration}`);
+      const results = (await concurrentlyExec(previewPromises, 1)).map(
+        (result) => result.data.logs
+      );
+      console.log(JSON.stringify(results));
+      console.log(`\n${results[0][0].duration}`);
 
       /**
        * END Custom data loader logic
