@@ -43,6 +43,7 @@ import { initSavedObjects } from './saved_objects';
 import { AppClientFactory } from './client';
 import type { ConfigType } from './config';
 import { createConfig } from './config';
+import { registerDeprecations } from './deprecations';
 import { initUiSettings } from './ui_settings';
 import {
   APP_ID,
@@ -205,6 +206,8 @@ export class Plugin implements ISecuritySolutionPlugin {
       core.analytics.registerEventType(eventConfig);
     });
 
+    registerDeprecations({ core, config: this.config, logger: this.logger });
+
     this.ruleMonitoringService.setup(core, plugins);
 
     if (experimentalFeatures.riskScoringPersistence) {
@@ -269,6 +272,7 @@ export class Plugin implements ISecuritySolutionPlugin {
       core,
       eventLogIndex: plugins.eventLog.getIndexPattern(),
       signalsIndex: DEFAULT_ALERTS_INDEX,
+      legacySignalsIndex: config.signalsIndex,
       ml: plugins.ml,
       usageCollection: plugins.usageCollection,
       logger,
