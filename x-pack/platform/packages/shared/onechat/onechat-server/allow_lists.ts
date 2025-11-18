@@ -14,6 +14,9 @@ import { platformCoreTools } from '@kbn/onechat-common/tools';
 export const AGENT_BUILDER_BUILTIN_TOOLS: string[] = [
   // platform core tools are registered from the agent builder plugin so will trigger a review anyway
   ...Object.values(platformCoreTools),
+  // Security Solution
+  'security.my_tool',
+  'security.create_detection_rule',
   // Observability
   'observability.search_knowledge_base',
   'observability.get_data_sources',
