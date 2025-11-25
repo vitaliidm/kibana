@@ -18,8 +18,9 @@ export const AGENT_BUILDER_BUILTIN_TOOLS: string[] = [
   'security.my_tool',
   'security.create_detection_rule',
   // Observability
-  'observability.search_knowledge_base',
   'observability.get_data_sources',
+  'observability.get_anomaly_detection_jobs',
+  'observability.run_log_rate_analysis',
   'observability.get_alerts',
   'observability.get_services',
   'observability.get_downstream_dependencies',
