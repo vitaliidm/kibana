@@ -148,6 +148,7 @@ import { ENTITY_RISK_SCORE_TOOL_ID } from './assistant/tools/entity_risk_score/e
 import type { TelemetryQueryConfiguration } from './lib/telemetry/types';
 
 export type { SetupPlugins, StartPlugins, PluginSetup, PluginStart } from './plugin_contract';
+import { registerTools as registerOneChatTools } from './lib/detection_engine/ai_assisted_rule_creation/onechat/register_tools';
 
 export class Plugin implements ISecuritySolutionPlugin {
   private readonly pluginContext: PluginInitializerContext;
@@ -482,6 +483,8 @@ export class Plugin implements ISecuritySolutionPlugin {
     const exceptionListsSetupEnabled = () => {
       return plugins.taskManager && plugins.lists;
     };
+
+    registerOneChatTools({ core, plugins, logger });
 
     if (exceptionListsSetupEnabled()) {
       this.lists = plugins.lists;
