@@ -11,11 +11,10 @@ import { ToolResultType } from '@kbn/onechat-common/tools/tool_result';
 import type { BuiltinToolDefinition, StaticToolRegistration } from '@kbn/onechat-server';
 import type { CoreSetup, Logger } from '@kbn/core/server';
 import type {
-  SecuritySolutionPluginSetupDependencies,
   SecuritySolutionPluginStart,
   SecuritySolutionPluginStartDependencies,
-} from '../../../../../plugin_contract';
-import { getIterativeRuleCreationAgent } from '../../iterative_agent/iterative_agent_graph';
+} from '../../plugin_contract';
+import { getIterativeRuleCreationAgent } from '../../lib/detection_engine/ai_assisted_rule_creation/iterative_agent/iterative_agent_graph';
 
 export const SECURITY_CREATE_DETECTION_RULE_TOOL_ID = 'security.create_detection_rule';
 
@@ -25,17 +24,12 @@ const createDetectionRuleSchema = z.object({
     .describe(
       'Natural language description of the detection rule to create, including threat scenarios, data sources, and desired detection logic'
     ),
-  });
+});
 
-export function createDetectionRuleTool({
-  core,
-  plugins,
-  logger,
-}: {
-  core: CoreSetup<SecuritySolutionPluginStartDependencies, SecuritySolutionPluginStart>;
-  plugins: SecuritySolutionPluginSetupDependencies;
-  logger: Logger;
-}): StaticToolRegistration<typeof createDetectionRuleSchema> {
+export function createDetectionRuleTool(
+  core: CoreSetup<SecuritySolutionPluginStartDependencies, SecuritySolutionPluginStart>,
+  logger: Logger
+): StaticToolRegistration<typeof createDetectionRuleSchema> {
   const toolDefinition: BuiltinToolDefinition<typeof createDetectionRuleSchema> = {
     id: SECURITY_CREATE_DETECTION_RULE_TOOL_ID,
     type: ToolType.builtin,
@@ -74,21 +68,6 @@ export function createDetectionRuleTool({
         // Get required services
         const [coreStart, startPlugins] = await core.getStartServices();
         const savedObjectsClient = coreStart.savedObjects.createInternalRepository();
-
-        const alerting = plugins.alerting;
-
-        if (!alerting) {
-          return {
-            results: [
-              {
-                type: ToolResultType.error,
-                data: {
-                  message: 'Alerting plugin is not available',
-                },
-              },
-            ],
-          };
-        }
 
         const rulesClient = await startPlugins.alerting.getRulesClientWithRequest(request);
         const iterativeAgent = await getIterativeRuleCreationAgent({

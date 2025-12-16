@@ -29,7 +29,6 @@ export const AGENT_BUILDER_BUILTIN_TOOLS: string[] = [
   'platform.dashboard.create_dashboard',
   'platform.dashboard.update_dashboard',
   // Security Solution
-  'security.my_tool',
   'security.create_detection_rule',
   `${internalNamespaces.security}.entity_risk_score`,
   `${internalNamespaces.security}.attack_discovery_search`,

@@ -28,7 +28,6 @@ import type { FleetStartContract as FleetPluginStart } from '@kbn/fleet-plugin/s
 import type { LicensingPluginStart, LicensingPluginSetup } from '@kbn/licensing-plugin/server';
 import type { ListPluginSetup } from '@kbn/lists-plugin/server';
 import type { MlPluginSetup } from '@kbn/ml-plugin/server';
-import type { OnechatPluginSetup, OnechatPluginStart } from '@kbn/onechat-plugin/server/types';
 
 import type {
   RuleRegistryPluginSetupContract as RuleRegistryPluginSetup,
@@ -94,7 +93,6 @@ export interface SecuritySolutionPluginStartDependencies {
   share: SharePluginStart;
   actions: ActionsPluginStartContract;
   inference: InferenceServerStart;
-  onechat: OnechatPluginStart;
 }
 
 export interface SecuritySolutionPluginSetup {

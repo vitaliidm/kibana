@@ -155,7 +155,6 @@ import type { TelemetryQueryConfiguration } from './lib/telemetry/types';
 import { AIValueReportLocatorDefinition } from '../common/locators/ai_value_report/locator';
 
 export type { SetupPlugins, StartPlugins, PluginSetup, PluginStart } from './plugin_contract';
-import { registerTools as registerOneChatTools } from './lib/detection_engine/ai_assisted_rule_creation/onechat/register_tools';
 
 export class Plugin implements ISecuritySolutionPlugin {
   private readonly pluginContext: PluginInitializerContext;
@@ -547,8 +546,6 @@ export class Plugin implements ISecuritySolutionPlugin {
     const exceptionListsSetupEnabled = () => {
       return plugins.taskManager && plugins.lists;
     };
-
-    registerOneChatTools({ core, plugins, logger });
 
     if (exceptionListsSetupEnabled()) {
       this.lists = plugins.lists;

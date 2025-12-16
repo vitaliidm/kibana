@@ -11,6 +11,7 @@ import { securityLabsSearchTool } from './security_labs_search_tool';
 import { attackDiscoverySearchTool } from './attack_discovery_search_tool';
 import { entityRiskScoreTool } from './entity_risk_score_tool';
 import { alertsTool } from './alerts_tool';
+import { createDetectionRuleTool } from './create_detection_rule_tool';
 import type { SecuritySolutionPluginCoreSetupDependencies } from '../../plugin_contract';
 
 /**
@@ -24,5 +25,6 @@ export const registerTools = async (
   onechat.tools.register(entityRiskScoreTool(core, logger));
   onechat.tools.register(attackDiscoverySearchTool(core, logger));
   onechat.tools.register(securityLabsSearchTool(core, logger));
+  onechat.tools.register(createDetectionRuleTool(core, logger));
   onechat.tools.register(alertsTool(core, logger));
 };
