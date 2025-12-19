@@ -14,7 +14,7 @@ import type {
   SecuritySolutionPluginStart,
   SecuritySolutionPluginStartDependencies,
 } from '../../plugin_contract';
-import { getIterativeRuleCreationAgent } from '../../lib/detection_engine/ai_assisted_rule_creation/iterative_agent/iterative_agent_graph';
+import { getBuildAgent } from '../../lib/detection_engine/ai_assisted_rule_creation/iterative_agent';
 
 export const SECURITY_CREATE_DETECTION_RULE_TOOL_ID = 'security.create_detection_rule';
 
@@ -37,7 +37,7 @@ export function createDetectionRuleTool(
       'Creates a security detection rule based on natural language description. Analyzes the query, identifies relevant data sources, generates ES|QL queries, and produces a complete detection rule with metadata, tags, and scheduling information.',
     schema: createDetectionRuleSchema,
     tags: ['security', 'detection', 'rule-creation', 'siem'],
-    handler: async ({ user_query: userQuery }, { esClient, modelProvider, request, ...rest }) => {
+    handler: async ({ user_query: userQuery }, { esClient, modelProvider, request, events }) => {
       try {
         logger.debug(
           `Create detection rule tool invoked with query: ${userQuery.substring(0, 100)}...`
@@ -70,7 +70,7 @@ export function createDetectionRuleTool(
         const savedObjectsClient = coreStart.savedObjects.createInternalRepository();
 
         const rulesClient = await startPlugins.alerting.getRulesClientWithRequest(request);
-        const iterativeAgent = await getIterativeRuleCreationAgent({
+        const iterativeAgent = await getBuildAgent({
           model,
           logger,
           inference: startPlugins.inference,
@@ -80,6 +80,7 @@ export function createDetectionRuleTool(
           esClient: esClient.asCurrentUser,
           savedObjectsClient,
           rulesClient,
+          events,
         });
         const result = await iterativeAgent.invoke({ userQuery });
 

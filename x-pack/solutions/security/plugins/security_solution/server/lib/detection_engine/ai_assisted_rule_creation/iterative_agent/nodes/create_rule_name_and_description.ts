@@ -7,30 +7,39 @@
 
 import { JsonOutputParser } from '@langchain/core/output_parsers';
 import type { InferenceChatModel } from '@kbn/inference-langchain';
+import type { ToolEventEmitter } from '@kbn/onechat-server';
 import { CREATE_ESQL_RULE_NAME_AND_DESCRIPTION_PROMPT } from './prompts';
 import type { RuleCreationAnnotation } from '../state';
 
 interface CreateRuleNameAndDescriptionNodeParams {
   model: InferenceChatModel;
+  events?: ToolEventEmitter;
 }
 
 export const createRuleNameAndDescriptionNode = ({
   model,
+  events,
 }: CreateRuleNameAndDescriptionNodeParams) => {
   const jsonParser = new JsonOutputParser();
   const ruleCreationChain =
     CREATE_ESQL_RULE_NAME_AND_DESCRIPTION_PROMPT.pipe(model).pipe(jsonParser);
   return async (state: typeof RuleCreationAnnotation.State) => {
+    events?.reportProgress('Generating rule name and description...');
+
     try {
       const baseRuleParams = await ruleCreationChain.invoke({
         user_request: state.userQuery,
         esql_query: state.rule.query,
       });
+
+      events?.reportProgress('Rule name and description generated successfully');
+
       return {
         ...state,
         rule: { ...state.rule, ...baseRuleParams },
       };
     } catch (e) {
+      events?.reportProgress(`Failed to create rule name and description: ${e.message}`);
       return {
         ...state,
         errors: [...state.errors, `Failed to create rule name and description: ${e.message}`],

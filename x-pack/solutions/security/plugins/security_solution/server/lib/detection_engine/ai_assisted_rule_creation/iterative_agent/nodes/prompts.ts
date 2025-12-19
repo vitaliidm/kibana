@@ -92,7 +92,7 @@ Based on user query determine whether user ask  lookback period for data analysi
 
 For example, if you set a rule to run every 5 minutes with an additional look-back time of 1 minute, the rule runs every 5 minutes but analyzes the documents added to indices during the last 6 minutes.
 Important: It is recommended to set the Additional look-back time to at least 1 minute. This ensures there are no missing alerts when a rule does not run exactly at its scheduled time.
-
+When requested to do operations over time windows, use those to determine schedule.
 
 INTERVAL Guidelines:
 - Use time units of seconds (s), minutes (m), hours (h), or days (d) only

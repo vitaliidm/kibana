@@ -9,6 +9,7 @@ import type { SavedObjectsClientContract } from '@kbn/core/server';
 import type { RulesClient } from '@kbn/alerting-plugin/server';
 
 import type { InferenceChatModel } from '@kbn/inference-langchain';
+import type { ToolEventEmitter } from '@kbn/onechat-server';
 import { JsonOutputParser } from '@langchain/core/output_parsers';
 import type { RuleCreationAnnotation } from '../state';
 import { getPrebuiltRulesAssets } from '../../utils/get_prebuilt_rules_assets';
@@ -21,12 +22,20 @@ interface GetTagsNodeParams {
   savedObjectsClient: SavedObjectsClientContract;
   rulesClient: RulesClient;
   model: InferenceChatModel;
+  events?: ToolEventEmitter;
 }
 
-export const getTagsNode = ({ savedObjectsClient, model, rulesClient }: GetTagsNodeParams) => {
+export const getTagsNode = ({
+  savedObjectsClient,
+  model,
+  rulesClient,
+  events,
+}: GetTagsNodeParams) => {
   const jsonParser = new JsonOutputParser<{ relevant_tags: string[] }>();
 
   return async (state: typeof RuleCreationAnnotation.State) => {
+    events?.reportProgress('Fetching available tags and selecting relevant ones...');
+
     try {
       const tagsSet = new Set<string>();
 
@@ -48,6 +57,8 @@ export const getTagsNode = ({ savedObjectsClient, model, rulesClient }: GetTagsN
 
       const availableTags = Array.from(tagsSet);
 
+      events?.reportProgress(`Analyzing ${availableTags.length} available tags...`);
+
       const tagsSelectionChain = TAGS_SELECTION_PROMPT.pipe(model).pipe(jsonParser);
 
       const tagsSelectionResult = await tagsSelectionChain.invoke({
@@ -62,6 +73,8 @@ export const getTagsNode = ({ savedObjectsClient, model, rulesClient }: GetTagsN
           )
         : [];
 
+      events?.reportProgress(`Selected ${suggestedTags.length} relevant tag(s)`);
+
       return {
         ...state,
         rule: {
@@ -70,6 +83,7 @@ export const getTagsNode = ({ savedObjectsClient, model, rulesClient }: GetTagsN
         },
       };
     } catch (error) {
+      events?.reportProgress(`Failed to fetch and process tags: ${error.message}`);
       return {
         ...state,
         errors: [`Failed to fetch and process tags: ${error.message}`],

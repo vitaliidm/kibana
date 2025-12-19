@@ -6,11 +6,20 @@
  */
 
 import type { InferenceChatModel } from '@kbn/inference-langchain';
+import type { ToolEventEmitter } from '@kbn/onechat-server';
 import type { RuleCreationState } from '../state';
 
-export const addDefaultFieldsToRulesNode = ({ model }: { model: InferenceChatModel }) => {
+export const addDefaultFieldsToRulesNode = ({
+  model,
+  events,
+}: {
+  model: InferenceChatModel;
+  events?: ToolEventEmitter;
+}) => {
   return async (state: RuleCreationState) => {
-    return {
+    events?.reportProgress('Adding default fields to rule...');
+
+    const updatedState = {
       ...state,
       rule: {
         ...state.rule,
@@ -30,5 +39,9 @@ export const addDefaultFieldsToRulesNode = ({ model }: { model: InferenceChatMod
         severity: 'low',
       },
     };
+
+    events?.reportProgress('Default fields added to rule');
+
+    return updatedState;
   };
 };
