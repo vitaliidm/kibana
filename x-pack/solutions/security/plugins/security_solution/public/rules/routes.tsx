@@ -19,7 +19,6 @@ import {
   RULES_LANDING_PATH,
   RULES_PATH,
   AI_ASSISTED_RULE_CREATE_PATH,
-  SECURITY_FEATURE_ID,
   SecurityPageName,
 } from '../../common/constants';
 import { NotFoundPage } from '../app/404';
@@ -79,9 +78,13 @@ const getRulesSubRoutes = (capabilities: Capabilities) => [
         },
         {
           path: AI_ASSISTED_RULE_CREATE_PATH,
-          main: withSecurityRoutePageWrapper(CreateRulePage, SecurityPageName.aiAssistedRuleCreate, {
-            omitSpyRoute: true,
-          }),
+          main: withSecurityRoutePageWrapper(
+            AiAssistedCreateRulePage,
+            SecurityPageName.aiAssistedRuleCreate,
+            {
+              omitSpyRoute: true,
+            }
+          ),
           exact: true,
         },
       ]

@@ -5,12 +5,14 @@
  * 2.0.
  */
 
-import type { AttachmentTypeDefinition } from '@kbn/onechat-server/attachments';
-import type { Attachment } from '@kbn/onechat-common/attachments';
-import { platformCoreTools } from '@kbn/onechat-common';
+import type { AttachmentTypeDefinition } from '@kbn/agent-builder-server/attachments';
+import type { Attachment } from '@kbn/agent-builder-common/attachments';
+import { platformCoreTools } from '@kbn/agent-builder-common';
 import { z } from '@kbn/zod';
 import { SecurityAgentBuilderAttachments } from '../../../common/constants';
-
+import {
+  SECURITY_CREATE_DETECTION_RULE_TOOL_ID,
+} from '../tools';
 export const ruleAttachmentDataSchema = z.object({
   text: z.string(),
 });
@@ -38,7 +40,7 @@ export const createRuleAttachmentType = (): AttachmentTypeDefinition => {
       // Extract data to allow proper type narrowing
       const data = attachment.data;
       // Necessary because we cannot currently use the AttachmentType type as agent is not
-      // registered with enum AttachmentType in onechat attachment_types.ts
+      // registered with enum AttachmentType in agentBuilder attachment_types.ts
       if (!isRuleAttachmentData(data)) {
         throw new Error(`Invalid rule attachment data for attachment ${attachment.id}`);
       }
@@ -48,7 +50,7 @@ export const createRuleAttachmentType = (): AttachmentTypeDefinition => {
         },
       };
     },
-    getTools: () => [platformCoreTools.generateEsql, platformCoreTools.productDocumentation],
+    getTools: () => [platformCoreTools.generateEsql, platformCoreTools.productDocumentation, SECURITY_CREATE_DETECTION_RULE_TOOL_ID],
     getAgentDescription: () => {
       const description = `You have access to a rule or query.
 

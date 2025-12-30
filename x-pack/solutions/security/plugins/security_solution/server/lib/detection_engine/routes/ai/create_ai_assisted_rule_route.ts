@@ -51,7 +51,6 @@ export const createAIAssistedRuleRoute = (router: SecuritySolutionPluginRouter, 
         const esClient = core.elasticsearch.client.asCurrentUser;
         const savedObjectsClient = core.savedObjects.client;
         const rulesClient = await ctx.alerting.getRulesClient();
-        const kbDataClient = await ctx.securitySolution.getAIAssistantKnowledgeBaseDataClient();
 
         const abortController = new AbortController();
 

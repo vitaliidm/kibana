@@ -10,3 +10,5 @@ export {
   RULE_CREATION_NODE_NAMES,
   RULE_CREATION_NODE_ORDER,
 } from './iterative_agent_graph';
+
+export { getBuildAgent } from './build_agent_graph';

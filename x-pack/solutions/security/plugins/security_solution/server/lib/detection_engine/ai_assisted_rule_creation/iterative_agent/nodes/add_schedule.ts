@@ -7,6 +7,7 @@
 
 import type { Logger } from '@kbn/core/server';
 import type { InferenceChatModel } from '@kbn/inference-langchain';
+import type { ToolEventEmitter } from '@kbn/onechat-server';
 import { JsonOutputParser } from '@langchain/core/output_parsers';
 import { TimeDuration } from '@kbn/securitysolution-utils/src/time_duration/time_duration';
 import type { RuleSchedule } from '../../../../../../common/api/detection_engine/model/rule_schema/rule_schedule';
@@ -67,10 +68,16 @@ export const parseAndValidateSchedule = (
  * Node that computes the appropriate schedule (interval and from) for a detection rule
  * based on the user query and rule context
  */
-export const addScheduleNode = ({ model, logger }: ComputeScheduleParams) => {
+export const addScheduleNode = ({
+  model,
+  logger,
+  events,
+}: ComputeScheduleParams & { events?: ToolEventEmitter }) => {
   const jsonParser = new JsonOutputParser<ScheduleRetrievalChainResponse>();
 
   return async (state: RuleCreationState): Promise<RuleCreationState> => {
+    events?.reportProgress('Computing rule schedule (interval and lookback period)...');
+
     try {
       const scheduleRetrievalChain = SCHEDULE_RETRIEVAL_PROMPT.pipe(model).pipe(jsonParser);
       const scheduleRetrievalResult = await scheduleRetrievalChain.invoke({
@@ -78,6 +85,10 @@ export const addScheduleNode = ({ model, logger }: ComputeScheduleParams) => {
       });
 
       const schedule = parseAndValidateSchedule(scheduleRetrievalResult, logger);
+
+      events?.reportProgress(
+        `Schedule computed: interval=${schedule.interval}, from=${schedule.from}`
+      );
 
       return {
         ...state,
@@ -88,6 +99,7 @@ export const addScheduleNode = ({ model, logger }: ComputeScheduleParams) => {
       };
     } catch (error) {
       logger.debug('Error computing schedule:', error);
+      events?.reportProgress(`Failed to compute schedule, using defaults: ${error.message}`);
       return {
         ...state,
         rule: {
