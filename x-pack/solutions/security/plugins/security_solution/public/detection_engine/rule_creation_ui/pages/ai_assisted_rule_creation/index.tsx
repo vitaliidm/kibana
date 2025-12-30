@@ -27,13 +27,13 @@ import { MaxWidthEuiFlexItem } from '../../../common/helpers';
 import { SecurityPageName } from '../../../../app/types';
 // import { useKibana } from '../../../../common/lib/kibana';
 import { useAIConnectors } from '../../../../common/hooks/use_ai_connectors';
-import { useAiRuleCreationStream } from './hooks/use_ai_rule_creation_stream';
+import { useAgentBuilderStream } from './hooks/use_agent_builder_stream';
 import { CreateRulePage } from '../rule_creation';
 import { useKibana } from '../../../../common/lib/kibana';
 import { PromptComponent } from './prompt';
 import { LinkIcon } from '../../../../common/components/link_icon';
 import { useHeaderLinkBackStyles } from '../../../../common/components/header_page';
-import { AiAssistedRuleUpdates } from './updates';
+import { AiAssistedRuleUpdates } from './agent_builder_updates';
 import { APP_UI_ID } from '../../../../../common/constants';
 import { useIsExperimentalFeatureEnabled } from '../../../../common/hooks/use_experimental_features';
 const AiAssistedCreateRulePageComponent: React.FC = () => {
@@ -75,6 +75,16 @@ const AiAssistedCreateRulePageComponent: React.FC = () => {
     }
   }, [aiConnectors, isAiConnectorsLoading, selectedConnectorId]);
 
+  // const {
+  //   rule,
+  //   streamRuleCreation,
+  //   updates,
+  //   cancelRuleCreation,
+  //   isStreaming: isAiRuleCreationInProgress,
+  //   isCancelled: isAiRuleCreationCancelled,
+  // } = useAiRuleCreationStream();
+
+
   const {
     rule,
     streamRuleCreation,
@@ -82,7 +92,7 @@ const AiAssistedCreateRulePageComponent: React.FC = () => {
     cancelRuleCreation,
     isStreaming: isAiRuleCreationInProgress,
     isCancelled: isAiRuleCreationCancelled,
-  } = useAiRuleCreationStream();
+  } = useAgentBuilderStream();
 
   const isValid = promptValue.length > 0 && selectedConnectorId != null;
   const submitPrompt = useCallback(() => {
@@ -236,7 +246,6 @@ const AiAssistedCreateRulePageComponent: React.FC = () => {
                       <EuiSpacer size="m" />
                       <AiAssistedRuleUpdates
                         updates={updates}
-                        isStreaming={isAiRuleCreationInProgress}
                       />
                     </MaxWidthEuiFlexItem>
                   </EuiFlexGroup>

@@ -10,7 +10,9 @@ import type { Attachment } from '@kbn/onechat-common/attachments';
 import { platformCoreTools } from '@kbn/onechat-common';
 import { z } from '@kbn/zod';
 import { SecurityAgentBuilderAttachments } from '../../../common/constants';
-
+import {
+  SECURITY_CREATE_DETECTION_RULE_TOOL_ID,
+} from '../tools';
 export const ruleAttachmentDataSchema = z.object({
   text: z.string(),
 });
@@ -48,7 +50,7 @@ export const createRuleAttachmentType = (): AttachmentTypeDefinition => {
         },
       };
     },
-    getTools: () => [platformCoreTools.generateEsql, platformCoreTools.productDocumentation],
+    getTools: () => [platformCoreTools.generateEsql, platformCoreTools.productDocumentation, SECURITY_CREATE_DETECTION_RULE_TOOL_ID],
     getAgentDescription: () => {
       const description = `You have access to a rule or query.
 
