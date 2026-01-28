@@ -88,6 +88,6 @@ export const RULE_ATTACHMENT_PROMPT = `Review the detection rule provided and he
 - Rule name
 - Rule description
 
-Put each suggested field into copyable code block of new field value in markdown with named sections.
+Put each suggested field into copyable code block of new field value in markdown with named sections. Use dedicated detection rule create tools.
 
 Question:`;

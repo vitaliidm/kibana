@@ -90,6 +90,8 @@ import { useRuleForms, useRuleIndexPattern } from '../form';
 import { CustomHeaderPageMemo } from '..';
 import { useUserPrivileges } from '../../../../common/components/user_privileges';
 import { AddRuleAttachmentToChatButton } from '../../components/add_rule_attachment_to_chat_button';
+import { useAgentBuilderRuleUpdate } from '../../hooks/use_agent_builder_rule_update';
+import { showAiRuleConfirmationToast } from '../../components/ai_rule_confirmation_toast';
 
 const MyEuiPanel = styled(EuiPanel)<{
   zindex?: number;
@@ -127,8 +129,9 @@ const CreateRulePageComponent: React.FC<{
   const { loading: listsConfigLoading, needsConfiguration: needsListsConfiguration } =
     useListsConfig();
   const { addSuccess } = useAppToasts();
-  const { navigateToApp } = useKibana().services.application;
-  const { application, triggersActionsUi } = useKibana().services;
+  const kibanaServices = useKibana().services;
+  const { navigateToApp } = kibanaServices.application;
+  const { application, triggersActionsUi } = kibanaServices;
   const loading = userInfoLoading || listsConfigLoading;
   const [activeStep, setActiveStep] = useState<RuleStep>(RuleStep.defineRule);
   const getNextStep = (step: RuleStep): RuleStep | undefined =>
@@ -242,6 +245,58 @@ const CreateRulePageComponent: React.FC<{
     }
     setPrevRuleType(ruleType);
   }, [aboutStepForm, scheduleStepForm, isThreatMatchRuleValue, prevRuleType, ruleType]);
+
+  // Function to apply AI-generated rule data to the form
+  const applyRuleToForm = useCallback(
+    (ruleResponse: RuleResponse) => {
+      try {
+        // Convert the rule response to form data using getStepsData
+        const aiGeneratedStepsData = getStepsData({ rule: ruleResponse });
+
+        // eslint-disable-next-line no-console
+        console.log('[CreateRulePage] Converted steps data:', aiGeneratedStepsData);
+
+        // Update all form steps with the AI-generated data
+        defineStepForm.updateFieldValues(aiGeneratedStepsData.defineRuleData);
+        aboutStepForm.updateFieldValues(aiGeneratedStepsData.aboutRuleData);
+        scheduleStepForm.updateFieldValues(aiGeneratedStepsData.scheduleRuleData);
+        actionsStepForm.updateFieldValues(aiGeneratedStepsData.ruleActionsData);
+
+        // Navigate to the first step to show the populated form
+        setActiveStep(RuleStep.defineRule);
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error('[CreateRulePage] Failed to apply AI-generated rule:', error);
+      }
+    },
+    [defineStepForm, aboutStepForm, scheduleStepForm, actionsStepForm]
+  );
+
+  const handleRuleUpdate = useCallback(
+    (result: { success: boolean; rule?: RuleResponse; error?: string }) => {
+      if (!result.success || !result.rule) {
+        return;
+      }
+
+      const ruleResponse = result.rule;
+
+      // Show confirmation toast with action buttons
+      showAiRuleConfirmationToast({
+        ruleResponse,
+        onApply: (aiRule) => {
+          applyRuleToForm(aiRule);
+        },
+        onDismiss: () => {
+          // Placeholder for any cleanup needed when user dismisses
+        },
+        services: kibanaServices,
+      });
+    },
+    [applyRuleToForm, kibanaServices]
+  );
+
+  // Listen to global agent builder events for AI-generated rules
+  useAgentBuilderRuleUpdate({ onRuleUpdate: handleRuleUpdate });
 
   const { starting: isStartingJobs, startMlJobs } = useStartMlJobs();
 
