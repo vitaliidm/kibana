@@ -24,11 +24,7 @@ export const RuleUpdateConfirmationToast: React.FC<RuleUpdateConfirmationToastPr
       </EuiFlexItem>
       <EuiFlexGroup gutterSize="s">
         <EuiFlexItem grow={false}>
-          <EuiButton
-            size="s"
-            onClick={onUpdate}
-            data-test-subj="ai-rule-update-form-button"
-          >
+          <EuiButton size="s" onClick={onUpdate} data-test-subj="ai-rule-update-form-button">
             {'Update form'}
           </EuiButton>
         </EuiFlexItem>
@@ -46,4 +42,3 @@ export const RuleUpdateConfirmationToast: React.FC<RuleUpdateConfirmationToastPr
     </EuiFlexGroup>
   );
 };
-

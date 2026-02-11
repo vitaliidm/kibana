@@ -15,12 +15,25 @@ import {
   isToolCallEvent,
   isReasoningEvent,
   isThinkingCompleteEvent,
+  isConversationCreatedEvent,
+  isConversationUpdatedEvent,
+  isRoundCompleteEvent,
+  type ConversationIdSetEvent,
+  type ConversationCreatedEvent,
+  type ConversationUpdatedEvent,
+  type RoundCompleteEvent,
 } from '@kbn/agent-builder-common';
+import { isConversationIdSetEvent } from '@kbn/agent-builder-common/chat/events';
+import type { VersionedAttachment } from '@kbn/agent-builder-common/attachments';
 import { stringifyZodError } from '@kbn/zod-helpers';
 import { v4 as uuidv4 } from 'uuid';
+import type { ActionTypeRegistryContract } from '@kbn/triggers-actions-ui-plugin/public';
 import { useKibana } from '../../../../../common/lib/kibana';
 import { useAppToasts } from '../../../../../common/hooks/use_app_toasts';
-import { RuleResponse } from '../../../../../../common/api/detection_engine/model/rule_schema';
+import {
+  RuleResponse,
+  type RuleCreateProps,
+} from '../../../../../../common/api/detection_engine/model/rule_schema';
 import { getStepsData } from '../../../../common/helpers';
 import type { FormHook } from '../../../../../shared_imports';
 import type {
@@ -30,6 +43,11 @@ import type {
   ActionsStepRule,
 } from '../../../../common/types';
 import { RuleUpdateConfirmationToast } from '../components/rule_update_confirmation_toast';
+import {
+  THREAT_HUNTING_AGENT_ID,
+  SecurityAgentBuilderAttachments,
+} from '../../../../../../common/constants';
+import { formatRule } from '../helpers';
 
 const SECURITY_CREATE_DETECTION_RULE_TOOL_ID = 'security.create_detection_rule';
 
@@ -75,7 +93,8 @@ export const useAgentBuilderRuleCreation = (
   defineStepForm: FormHook<DefineStepRule, DefineStepRule>,
   aboutStepForm: FormHook<AboutStepRule, AboutStepRule>,
   scheduleStepForm: FormHook<ScheduleStepRule, ScheduleStepRule>,
-  actionsStepForm: FormHook<ActionsStepRule, ActionsStepRule>
+  actionsStepForm: FormHook<ActionsStepRule, ActionsStepRule>,
+  actionTypeRegistry: ActionTypeRegistryContract
 ): UseAgentBuilderRuleCreationResult => {
   const { services } = useKibana();
   const { agentBuilder, i18n: i18nStart, theme } = services;
@@ -88,6 +107,12 @@ export const useAgentBuilderRuleCreation = (
   const isFirstRuleCreationRef = useRef(true);
   const formUpdatedRef = useRef(false);
   const detectionRuleToolCallIdRef = useRef<string | null>(null);
+  const conversationIdRef = useRef<string | null>(null);
+  const ruleAttachmentIdRef = useRef<string | null>(null);
+  const pendingRuleForAttachmentRef = useRef<RuleResponse | null>(null);
+  const updateAttachmentTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastAttachmentVersionRef = useRef<number | null>(null);
+  const isUpdatingFromAttachmentRef = useRef(false);
 
   // Check if page was opened from AI rule creation dropdown
   const isFromAiRuleCreation = useMemo(() => {
@@ -112,6 +137,171 @@ export const useAgentBuilderRuleCreation = (
     },
     [defineStepForm, aboutStepForm, scheduleStepForm, actionsStepForm, addSuccess]
   );
+
+  const findAndUpdateRuleAttachment = useCallback(
+    (rule: RuleResponse) => {
+      if (!agentBuilder?.setConversationFlyoutActiveConfig) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          '[useAgentBuilderRuleCreation] setConversationFlyoutActiveConfig not available for rule attachment update'
+        );
+        return;
+      }
+
+      try {
+        // Get the attachment ID from ref (set when conversation is created)
+        const attachmentId = ruleAttachmentIdRef.current;
+
+        if (!attachmentId) {
+          // eslint-disable-next-line no-console
+          console.warn('[useAgentBuilderRuleCreation] No rule attachment ID found to update', {
+            rule_name: rule.name,
+          });
+          return;
+        }
+
+        // Update the attachment with the new rule data
+        const ruleData = {
+          text: JSON.stringify(rule),
+          attachmentLabel: rule.name || 'Detection Rule',
+        };
+
+        // Update the active chat flyout configuration with the updated attachment
+        // Preserve existing config (sessionTag, agentId) to avoid resetting the conversation
+        agentBuilder.setConversationFlyoutActiveConfig({
+          sessionTag: 'security',
+          agentId: THREAT_HUNTING_AGENT_ID,
+          newConversation: false,
+          attachments: [
+            {
+              id: attachmentId,
+              type: SecurityAgentBuilderAttachments.rule,
+              data: ruleData,
+            },
+          ],
+        });
+
+        // eslint-disable-next-line no-console
+        console.log('[useAgentBuilderRuleCreation] Updated rule attachment via flyout config:', {
+          attachment_id: attachmentId,
+          rule_name: rule.name,
+        });
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error('[useAgentBuilderRuleCreation] Failed to update rule attachment:', error, {
+          rule_name: rule.name,
+          error_message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    },
+    [agentBuilder]
+  );
+
+  // Update attachment from form data
+  const updateAttachmentFromForm = useCallback(() => {
+    const attachmentId = ruleAttachmentIdRef.current;
+
+    if (!attachmentId || !isFromAiRuleCreation) {
+      // eslint-disable-next-line no-console
+      console.log('[useAgentBuilderRuleCreation] Skipping attachment update - missing refs:', {
+        hasAttachmentId: !!attachmentId,
+        isFromAiRuleCreation,
+      });
+      return;
+    }
+
+    // Prevent infinite loop: don't update attachment if we're currently updating from attachment
+    if (isUpdatingFromAttachmentRef.current) {
+      // eslint-disable-next-line no-console
+      console.log(
+        '[useAgentBuilderRuleCreation] Skipping attachment update - currently updating from attachment'
+      );
+      return;
+    }
+
+    if (!agentBuilder?.setConversationFlyoutActiveConfig) {
+      // eslint-disable-next-line no-console
+      console.warn('[useAgentBuilderRuleCreation] setConversationFlyoutActiveConfig not available');
+      return;
+    }
+
+    try {
+      // Get current form values
+      const defineStepData = defineStepForm.getFormData();
+      const aboutStepData = aboutStepForm.getFormData();
+      const scheduleStepData = scheduleStepForm.getFormData();
+      const actionsStepData = actionsStepForm.getFormData();
+
+      // Convert form data to rule using formatRule
+      const ruleData = formatRule<RuleCreateProps>(
+        defineStepData,
+        aboutStepData,
+        scheduleStepData,
+        actionsStepData,
+        actionTypeRegistry
+      );
+
+      // Update attachment data
+      const attachmentData = {
+        text: JSON.stringify(ruleData),
+        attachmentLabel: ruleData.name || 'Detection Rule',
+      };
+
+      // eslint-disable-next-line no-console
+      console.log(
+        '[useAgentBuilderRuleCreation] Updating attachment from form via flyout config:',
+        {
+          attachment_id: attachmentId,
+          rule_name: ruleData.name,
+        }
+      );
+
+      // Update the active chat flyout configuration with the updated attachment
+      // This ensures the chat UI reflects the latest attachment state immediately
+      // Preserve existing config (sessionTag, agentId) to avoid resetting the conversation
+      agentBuilder.setConversationFlyoutActiveConfig({
+        sessionTag: 'security',
+        agentId: THREAT_HUNTING_AGENT_ID,
+        newConversation: false,
+        attachments: [
+          {
+            id: attachmentId,
+            type: SecurityAgentBuilderAttachments.rule,
+            data: attachmentData,
+          },
+        ],
+      });
+
+      // eslint-disable-next-line no-console
+      console.log(
+        '[useAgentBuilderRuleCreation] Updated active chat flyout configuration with attachment',
+        JSON.stringify(
+          {
+            attachments: [
+              {
+                id: attachmentId,
+                type: SecurityAgentBuilderAttachments.rule,
+                data: attachmentData,
+              },
+            ],
+          },
+          null,
+          2
+        )
+      );
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('[useAgentBuilderRuleCreation] Failed to convert form to rule:', error);
+    }
+  }, [
+    defineStepForm,
+    aboutStepForm,
+    scheduleStepForm,
+    actionsStepForm,
+    actionTypeRegistry,
+    isFromAiRuleCreation,
+    agentBuilder,
+  ]);
 
   const handleToolResult = useCallback(
     (result: { type: string; data?: unknown }) => {
@@ -151,6 +341,10 @@ export const useAgentBuilderRuleCreation = (
       const rule = parseResult.data;
       const isFirstCreation = isFirstRuleCreationRef.current;
       const formAlreadyUpdated = formUpdatedRef.current;
+
+      // Store the rule to update attachment when conversation is created
+      // We'll update the attachment when we receive the conversationCreated event
+      pendingRuleForAttachmentRef.current = rule;
 
       if (isFirstCreation && !formAlreadyUpdated) {
         // First rule creation - automatically update form
@@ -192,12 +386,208 @@ export const useAgentBuilderRuleCreation = (
             />,
             { i18n: i18nStart, theme }
           ),
-          toastLifeTimeMs: 15000,
+          toastLifeTimeMs: 60_000,
           'data-test-subj': 'ai-rule-creation-success-toast',
         });
       }
     },
     [updateRuleFromAgentBuilder, addSuccess, addWarning, i18nStart, theme, toasts]
+  );
+
+  // Handle conversation ID set event
+  const handleConversationIdSet = useCallback((event: ConversationIdSetEvent) => {
+    const conversationId = event.data?.conversation_id;
+    if (conversationId) {
+      conversationIdRef.current = conversationId;
+    }
+    // eslint-disable-next-line no-console
+    console.log('[useAgentBuilderRuleCreation] Conversation ID set:', {
+      conversation_id: conversationId,
+      event_type: event.type,
+    });
+  }, []);
+
+  // Handle conversation created event
+  const handleConversationCreated = useCallback(
+    (event: ConversationCreatedEvent) => {
+      const conversationId = event.data?.conversation_id;
+      if (conversationId) {
+        conversationIdRef.current = conversationId;
+        // When conversation is created, update the attachment if we have a pending rule
+        const pendingRule = pendingRuleForAttachmentRef.current;
+        if (pendingRule) {
+          try {
+            findAndUpdateRuleAttachment(pendingRule);
+          } catch (error) {
+            // eslint-disable-next-line no-console
+            console.error(
+              '[useAgentBuilderRuleCreation] Error updating rule attachment after conversation created:',
+              error
+            );
+          }
+          pendingRuleForAttachmentRef.current = null;
+        }
+      }
+      // eslint-disable-next-line no-console
+      console.log('[useAgentBuilderRuleCreation] Conversation created:', {
+        conversation_id: conversationId,
+        title: event.data?.title,
+        event_type: event.type,
+      });
+    },
+    [findAndUpdateRuleAttachment]
+  );
+
+  // Handle conversation updated event
+  const handleConversationUpdated = useCallback((event: ConversationUpdatedEvent) => {
+    // eslint-disable-next-line no-console
+    console.log('[useAgentBuilderRuleCreation] Conversation updated:', {
+      conversation_id: event.data?.conversation_id,
+      title: event.data?.title,
+      event_type: event.type,
+    });
+  }, []);
+
+  // Handle rule attachment update from round complete event
+  const handleRuleAttachmentUpdate = useCallback(
+    (ruleAttachment: VersionedAttachment) => {
+      const currentVersion = ruleAttachment.current_version;
+      const lastVersion = lastAttachmentVersionRef.current;
+
+      if (lastVersion !== null && currentVersion <= lastVersion) {
+        return; // No new version
+      }
+
+      const latestVersion = ruleAttachment.versions.find(
+        (v: { version: number }) => v.version === currentVersion
+      );
+      if (!latestVersion?.data) {
+        return;
+      }
+
+      try {
+        const attachmentData = latestVersion.data as { text?: string };
+        if (!attachmentData.text) {
+          return;
+        }
+
+        const ruleJson = JSON.parse(attachmentData.text);
+        const parseResult = parseRuleResponse(ruleJson);
+
+        if (!parseResult.success || !parseResult.data) {
+          return;
+        }
+
+        // Prevent infinite loop: don't update form if we're currently updating from form
+        if (isUpdatingFromAttachmentRef.current) {
+          return;
+        }
+
+        isUpdatingFromAttachmentRef.current = true;
+        lastAttachmentVersionRef.current = currentVersion;
+        ruleAttachmentIdRef.current = ruleAttachment.id;
+
+        // Update form with the rule from attachment
+        const ruleData = parseResult.data;
+        setTimeout(() => {
+          try {
+            updateRuleFromAgentBuilder(ruleData);
+          } finally {
+            // Reset flag after a delay to allow form updates to complete
+            setTimeout(() => {
+              isUpdatingFromAttachmentRef.current = false;
+            }, 1000);
+          }
+        }, 0);
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error(
+          '[useAgentBuilderRuleCreation] Failed to parse rule from attachment update:',
+          error
+        );
+      }
+    },
+    [updateRuleFromAgentBuilder]
+  );
+
+  // Handle round complete event
+  const handleRoundComplete = useCallback(
+    (event: RoundCompleteEvent) => {
+      const attachments = event.data?.attachments;
+      if (!attachments || attachments.length === 0 || !isFromAiRuleCreation) {
+        return;
+      }
+
+      const ruleAttachment = attachments.find(
+        (attachment) =>
+          attachment.type === SecurityAgentBuilderAttachments.rule && attachment.active !== false
+      );
+
+      if (ruleAttachment) {
+        // Store the attachment ID if we don't have it yet
+        if (!ruleAttachmentIdRef.current) {
+          ruleAttachmentIdRef.current = ruleAttachment.id;
+          // eslint-disable-next-line no-console
+          console.log(
+            '[useAgentBuilderRuleCreation] Stored rule attachment ID from round complete:',
+            {
+              attachment_id: ruleAttachment.id,
+            }
+          );
+        }
+        handleRuleAttachmentUpdate(ruleAttachment);
+      }
+    },
+    [isFromAiRuleCreation, handleRuleAttachmentUpdate]
+  );
+
+  // Handle tool call event
+  const handleToolCall = useCallback((event: BrowserChatEvent) => {
+    if (!isToolCallEvent(event)) {
+      return;
+    }
+    const toolId = event.data?.tool_id;
+    if (toolId === SECURITY_CREATE_DETECTION_RULE_TOOL_ID) {
+      detectionRuleToolCallIdRef.current = event.data?.tool_call_id ?? null;
+    }
+  }, []);
+
+  // Handle tool progress event
+  const handleToolProgress = useCallback(
+    (event: BrowserChatEvent) => {
+      if (!isToolProgressEvent(event)) {
+        return;
+      }
+      const toolCallId = event.data?.tool_call_id;
+      if (
+        toolCallId === detectionRuleToolCallIdRef.current &&
+        isFromAiRuleCreation &&
+        isFirstRuleCreationRef.current &&
+        !formUpdatedRef.current
+      ) {
+        setIsThinking(true);
+        setShouldShowSkeleton(true);
+      }
+    },
+    [isFromAiRuleCreation]
+  );
+
+  // Handle tool result event
+  const handleToolResultEvent = useCallback(
+    (event: BrowserChatEvent) => {
+      if (!isToolResultEvent(event)) {
+        return;
+      }
+      const toolId = event.data?.tool_id;
+      const results = event.data?.results;
+
+      if (toolId === SECURITY_CREATE_DETECTION_RULE_TOOL_ID && results && results.length > 0) {
+        setIsThinking(false);
+        detectionRuleToolCallIdRef.current = null;
+        handleToolResult(results[0]);
+      }
+    },
+    [handleToolResult]
   );
 
   useEffect(() => {
@@ -207,50 +597,24 @@ export const useAgentBuilderRuleCreation = (
 
     const subscription = agentBuilder.events.chat$.subscribe({
       next: (event: BrowserChatEvent) => {
-        // Track when the detection rule creation tool is called
-        if (isToolCallEvent(event)) {
-          const toolId = event.data?.tool_id;
-          if (toolId === SECURITY_CREATE_DETECTION_RULE_TOOL_ID) {
-            detectionRuleToolCallIdRef.current = event.data?.tool_call_id ?? null;
-          }
-        }
-
-        // Detect when the detection rule creation tool starts executing
-        if (isToolProgressEvent(event)) {
-          const toolCallId = event.data?.tool_call_id;
-          // Only show skeleton if this is progress for the detection rule creation tool
-          if (
-            toolCallId === detectionRuleToolCallIdRef.current &&
-            isFromAiRuleCreation &&
-            isFirstRuleCreationRef.current &&
-            !formUpdatedRef.current
-          ) {
-            setIsThinking(true);
-            setShouldShowSkeleton(true);
-          }
-        }
-
-        // Detect when agent starts thinking (reasoning event)
-        if (isReasoningEvent(event)) {
+        if (isConversationIdSetEvent(event)) {
+          handleConversationIdSet(event as ConversationIdSetEvent);
+        } else if (isConversationCreatedEvent(event)) {
+          handleConversationCreated(event as ConversationCreatedEvent);
+        } else if (isConversationUpdatedEvent(event)) {
+          handleConversationUpdated(event as ConversationUpdatedEvent);
+        } else if (isRoundCompleteEvent(event)) {
+          handleRoundComplete(event as RoundCompleteEvent);
+        } else if (isToolCallEvent(event)) {
+          handleToolCall(event);
+        } else if (isToolProgressEvent(event)) {
+          handleToolProgress(event);
+        } else if (isReasoningEvent(event)) {
           setIsThinking(true);
-        }
-
-        // Detect when thinking is complete
-        if (isThinkingCompleteEvent(event)) {
+        } else if (isThinkingCompleteEvent(event)) {
           setIsThinking(false);
-        }
-
-        // Handle tool result from detection rule creation
-        if (isToolResultEvent(event)) {
-          const toolId = event.data?.tool_id;
-          const results = event.data?.results;
-
-          if (toolId === SECURITY_CREATE_DETECTION_RULE_TOOL_ID && results && results.length > 0) {
-            setIsThinking(false);
-            // Clear the tracked tool call ID after result
-            detectionRuleToolCallIdRef.current = null;
-            handleToolResult(results[0]);
-          }
+        } else if (isToolResultEvent(event)) {
+          handleToolResultEvent(event);
         }
       },
       error: (error) => {
@@ -264,7 +628,70 @@ export const useAgentBuilderRuleCreation = (
     return () => {
       subscriptionRef.current?.unsubscribe();
     };
-  }, [agentBuilder, handleToolResult, isFromAiRuleCreation]);
+  }, [
+    agentBuilder,
+    handleConversationIdSet,
+    handleConversationCreated,
+    handleConversationUpdated,
+    handleRoundComplete,
+    handleToolCall,
+    handleToolProgress,
+    handleToolResultEvent,
+  ]);
+
+  // Watch form changes and update attachment with debounce
+  useEffect(() => {
+    if (!isFromAiRuleCreation) {
+      return;
+    }
+
+    // Debounce attachment updates to avoid too many API calls
+    const DEBOUNCE_DELAY = 2000; // 2 seconds
+
+    const handleFormChange = () => {
+      // Check if refs are available before scheduling update
+      if (!conversationIdRef.current || !ruleAttachmentIdRef.current) {
+        // eslint-disable-next-line no-console
+        console.log(
+          '[useAgentBuilderRuleCreation] Form changed but refs not ready, will retry on next change',
+          {
+            hasConversationId: !!conversationIdRef.current,
+            hasAttachmentId: !!ruleAttachmentIdRef.current,
+          }
+        );
+        return;
+      }
+
+      if (updateAttachmentTimeoutRef.current) {
+        clearTimeout(updateAttachmentTimeoutRef.current);
+      }
+      updateAttachmentTimeoutRef.current = setTimeout(() => {
+        updateAttachmentFromForm();
+      }, DEBOUNCE_DELAY);
+    };
+
+    const defineStepSubscription = defineStepForm.__getFormData$().subscribe(handleFormChange);
+    const aboutStepSubscription = aboutStepForm.__getFormData$().subscribe(handleFormChange);
+    const scheduleStepSubscription = scheduleStepForm.__getFormData$().subscribe(handleFormChange);
+    const actionsStepSubscription = actionsStepForm.__getFormData$().subscribe(handleFormChange);
+
+    return () => {
+      defineStepSubscription.unsubscribe();
+      aboutStepSubscription.unsubscribe();
+      scheduleStepSubscription.unsubscribe();
+      actionsStepSubscription.unsubscribe();
+      if (updateAttachmentTimeoutRef.current) {
+        clearTimeout(updateAttachmentTimeoutRef.current);
+      }
+    };
+  }, [
+    isFromAiRuleCreation,
+    defineStepForm,
+    aboutStepForm,
+    scheduleStepForm,
+    actionsStepForm,
+    updateAttachmentFromForm,
+  ]);
 
   return {
     isThinking,

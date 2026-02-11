@@ -9,7 +9,10 @@ import { z } from '@kbn/zod';
 import { ToolType } from '@kbn/agent-builder-common';
 import { ToolResultType } from '@kbn/agent-builder-common/tools/tool_result';
 import type { BuiltinToolDefinition, StaticToolRegistration } from '@kbn/agent-builder-server';
+import { createErrorResult } from '@kbn/agent-builder-server';
+
 import type { CoreSetup, Logger } from '@kbn/core/server';
+
 import type {
   SecuritySolutionPluginStart,
   SecuritySolutionPluginStartDependencies,
@@ -27,6 +30,7 @@ const createDetectionRuleSchema = z.object({
     .describe(
       'Natural language description of the detection rule to create, including threat scenarios, data sources, and desired detection logic'
     ),
+  rule_attachement: z.string().describe('The body of rule attachment to edit').optional(),
 });
 
 export function createDetectionRuleTool(
@@ -59,7 +63,10 @@ export function createDetectionRuleTool(
         });
       },
     },
-    handler: async ({ user_query: userQuery }, { esClient, modelProvider, request, events }) => {
+    handler: async (
+      { user_query: userQuery, rule_body: ruleBody },
+      { esClient, modelProvider, request, events }
+    ) => {
       try {
         logger.debug(
           `Create detection rule tool invoked with query: ${userQuery.substring(0, 100)}...`
@@ -97,21 +104,15 @@ export function createDetectionRuleTool(
           rulesClient,
           events,
         });
-        const result = await iterativeAgent.invoke({ userQuery });
+        const result = await iterativeAgent.invoke(
+          ruleBody
+            ? { userQuery: `${userQuery}\n\n <existing_rule>${ruleBody}</existing_rule>` }
+            : { userQuery }
+        );
 
         if (result.errors.length) {
           logger.error(`Rule creation failed with errors: ${result.errors.join('; ')}`);
-          return {
-            results: [
-              {
-                type: ToolResultType.error,
-                data: {
-                  message: `Failed to create detection rule: ${result.errors.join('; ')}`,
-                  errors: result.errors,
-                },
-              },
-            ],
-          };
+          return createErrorResult(`Failed to create detection rule: ${result.errors.join('; ')}`);
         }
 
         logger.debug(`Successfully created detection rule: ${result.rule.name}`);

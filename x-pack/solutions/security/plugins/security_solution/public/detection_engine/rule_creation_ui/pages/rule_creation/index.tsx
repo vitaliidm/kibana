@@ -256,7 +256,8 @@ const CreateRulePageComponent: React.FC<{
     defineStepForm,
     aboutStepForm,
     scheduleStepForm,
-    actionsStepForm
+    actionsStepForm,
+    triggersActionsUi.actionTypeRegistry
   );
 
   // Collapse preview panel when skeleton is active

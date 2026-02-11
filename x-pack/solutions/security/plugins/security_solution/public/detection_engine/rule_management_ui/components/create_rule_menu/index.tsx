@@ -36,9 +36,10 @@ interface CreateRuleContextMenuProps {
  * for better integration with existing routing
  */
 const AI_RULE_CREATION_INITIAL_MESSAGE = `Create ES|QL SIEM detection rule (name, description, data sources, detection logic, severity, risk score, schedule, tags, and MITRE ATT&CK mappings) using dedicated detection rule creation tool. 
-
-You can review and edit everything before enabling the rule. 
+For any subsequent updates to the rule, use the same detection rule creation tool. If attachment is provided, use the latest version.
 Desired behavior or activity to detect:
+
+Detect users who, within a 2 hour interval window, either transfer over 100 MB of data or generate 100 or more events to a direct IP address (not a domain name)
 `;
 
 export const CreateRuleMenu: React.FC<CreateRuleContextMenuProps> = ({ loading, isDisabled }) => {
