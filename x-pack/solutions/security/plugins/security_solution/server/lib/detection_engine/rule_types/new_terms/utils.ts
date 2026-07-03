@@ -31,11 +31,16 @@ export const parseDateString = ({
 /**
  * Returns true if any of the provided index patterns targets a remote cluster.
  *
- * Cross-cluster search (CCS) targets use the `<cluster>:<index>` syntax, so any
- * entry containing a colon is treated as cross-cluster (e.g. `remote:logs-*`).
+ * Cross-cluster search (CCS) targets use the `<cluster>:<index>` syntax. A leading
+ * `::` is the selector separator (e.g. `logs::failures`), not a remote cluster, so it
+ * must not be treated as cross-cluster. Mirrors the CCS detection in `isNonLocalIndexName`.
  */
 export const hasCrossClusterIndices = (indices: string[] = []): boolean =>
-  indices.some((index) => index.includes(':'));
+  indices.some((index) => {
+    const colonIndex = index.indexOf(':');
+    const isSelector = index.startsWith('::', colonIndex);
+    return colonIndex > 0 && !isSelector;
+  });
 
 export const validateHistoryWindowStart = ({
   historyWindowStart,
@@ -96,15 +101,9 @@ export const hasFieldsWithUnsupportedEsqlTypes = async ({
     ignore_unavailable: true,
   });
 
-  for (const [, fieldCaps] of Object.entries(fieldCapsResponse.fields)) {
-    for (const fieldType of Object.keys(fieldCaps)) {
-      if (ESQL_UNSUPPORTED_FIELD_TYPES.has(fieldType)) {
-        return true;
-      }
-    }
-  }
-
-  return false;
+  return Object.values(fieldCapsResponse.fields).some((fieldCaps) =>
+    Object.keys(fieldCaps).some((fieldType) => ESQL_UNSUPPORTED_FIELD_TYPES.has(fieldType))
+  );
 };
 
 /**

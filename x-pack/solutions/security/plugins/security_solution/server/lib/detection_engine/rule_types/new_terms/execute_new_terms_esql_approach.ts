@@ -56,7 +56,7 @@ interface BuildNewTermsEsqlQueryParams {
   ruleIntervalFrom: string;
 }
 
-const buildNewTermsEsqlQuery = ({
+export const buildNewTermsEsqlQuery = ({
   inputIndex,
   newTermsFields,
   aggregatableTimestampField,
@@ -96,7 +96,7 @@ const buildNewTermsEsqlQuery = ({
   return query.print('basic');
 };
 
-const parseNewTermsCombinationsFromEsqlResponse = (
+export const parseNewTermsCombinationsFromEsqlResponse = (
   esqlResponse: EsqlTable,
   newTermsFields: string[]
 ): NewTermsCombination[] => {
@@ -165,6 +165,9 @@ const buildMsearchSearchesForCombinationBatch = ({
       filter: esFilter,
       additionalFilters: [combinationFilter],
       size: 1,
+      // Explicit so we always fetch the first occurrence of the combination, independent of the
+      // buildEventsSearchQuery default.
+      sortOrder: 'asc',
       primaryTimestamp,
       secondaryTimestamp,
     });
@@ -299,10 +302,8 @@ const createAlertsFromEventsAndTerms = async ({
 const BATCH_SIZE = 500;
 
 /**
- * New (ES|QL + _msearch based) New Terms implementation. Available on all license tiers for
- * local indices; cross-cluster search requires an Enterprise license (enforced by Elasticsearch).
- * Falls back to the aggregation approach when cross-cluster indices are detected without an
- * Enterprise license.
+ * New (ES|QL + _msearch based) New Terms implementation. Path selection (feature flag, license,
+ * field types, runtime fields) happens in the caller; by the time we get here the ES|QL path is chosen.
  *
  * It collapses the first two phases of the aggregation approach into a single ES|QL aggregation that
  * computes the `first_seen` timestamp per terms combination over the history window, and keeps only the

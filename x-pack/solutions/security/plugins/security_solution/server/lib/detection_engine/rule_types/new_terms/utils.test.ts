@@ -146,6 +146,18 @@ describe('hasCrossClusterIndices', () => {
   it('returns true when the index name contains a colon anywhere', () => {
     expect(hasCrossClusterIndices(['logs:special'])).toBe(true);
   });
+
+  it('returns false for a selector (::) pattern, which is local', () => {
+    expect(hasCrossClusterIndices(['logs::failures'])).toBe(false);
+  });
+
+  it('returns false for a leading-colon pattern', () => {
+    expect(hasCrossClusterIndices([':logs-*'])).toBe(false);
+  });
+
+  it('distinguishes a remote cluster from a selector in the same set', () => {
+    expect(hasCrossClusterIndices(['logs::failures', 'remote:logs-*'])).toBe(true);
+  });
 });
 
 describe('hasFieldsWithUnsupportedEsqlTypes', () => {
