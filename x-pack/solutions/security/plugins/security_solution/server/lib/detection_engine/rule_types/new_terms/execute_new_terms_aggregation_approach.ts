@@ -5,46 +5,31 @@
  * 2.0.
  */
 
-import { isObject, chunk, sum } from 'lodash';
+import { isObject, sum } from 'lodash';
 
 import type { NewTermsRuleParams } from '../../rule_schema';
 import type { SecurityExecutorOptions } from '../types';
 import { singleSearchAfter } from '../utils/single_search_after';
 import { buildEventsSearchQuery } from '../utils/build_events_query';
 import { getFilter } from '../utils/get_filter';
-import { wrapNewTermsAlerts } from './wrap_new_terms_alerts';
-import { bulkCreateSuppressedNewTermsAlertsInMemory } from './bulk_create_suppressed_alerts_in_memory';
+import { createAlertsFromEventsAndTerms } from './create_alerts_from_events_and_terms';
 import type { EventsAndTerms } from './types';
 import type { CreateAlertsHook } from './build_new_terms_aggregation';
-import type { NewTermsAlertLatest } from '../../../../../common/api/detection_engine/model/alerts';
 import {
   buildRecentTermsAgg,
   buildNewTermsAgg,
   buildDocFetchAgg,
 } from './build_new_terms_aggregation';
+import { parseDateString, validateHistoryWindowStart, transformBucketsToValues } from './utils';
 import {
-  ALERT_CHUNK_MULTIPLIER,
-  parseDateString,
-  validateHistoryWindowStart,
-  transformBucketsToValues,
-} from './utils';
-import {
-  addToSearchAfterReturn,
   createSearchAfterReturnType,
   getUnprocessedExceptionsWarnings,
-  getMaxSignalsWarning,
-  getSuppressionMaxSignalsWarning,
   stringifyAfterKey,
 } from '../utils/utils';
-import {
-  alertSuppressionTypeGuard,
-  getIsAlertSuppressionActive,
-} from '../utils/get_is_alert_suppression_active';
+import { getIsAlertSuppressionActive } from '../utils/get_is_alert_suppression_active';
 import { multiTermsComposite } from './multi_terms_composite';
-import type { GenericBulkCreateResponse } from '../utils/bulk_create_with_suppression';
 import type { RulePreviewLoggedRequest } from '../../../../../common/api/detection_engine/rule_preview/rule_preview.gen';
 import * as i18n from '../translations';
-import { bulkCreate } from '../factories';
 
 type NewTermsExecutorOptions = SecurityExecutorOptions<
   NewTermsRuleParams,
@@ -195,57 +180,14 @@ export const executeNewTermsAggregationApproach = async (execOptions: NewTermsEx
         };
       });
 
-      let bulkCreateResult: Omit<
-        GenericBulkCreateResponse<NewTermsAlertLatest>,
-        'suppressedItemsCount'
-      > = {
-        errors: [],
-        success: true,
-        enrichmentDuration: '0',
-        bulkCreateDuration: '0',
-        createdItemsCount: 0,
-        createdItems: [],
-        alertsWereTruncated: false,
-      };
-
-      // wrap and create alerts by chunks
-      // large number of matches, processed in possibly 10,000 size of events and terms
-      // can significantly affect Kibana performance
-      const eventAndTermsChunks = chunk(eventsAndTerms, ALERT_CHUNK_MULTIPLIER * params.maxSignals);
-
-      for (let i = 0; i < eventAndTermsChunks.length; i++) {
-        const eventAndTermsChunk = eventAndTermsChunks[i];
-
-        if (isAlertSuppressionActive && alertSuppressionTypeGuard(params.alertSuppression)) {
-          bulkCreateResult = await bulkCreateSuppressedNewTermsAlertsInMemory({
-            sharedParams,
-            eventsAndTerms: eventAndTermsChunk,
-            toReturn: result,
-            services,
-            alertSuppression: params.alertSuppression,
-          });
-        } else {
-          const wrappedAlerts = wrapNewTermsAlerts({
-            sharedParams,
-            eventsAndTerms: eventAndTermsChunk,
-          });
-
-          bulkCreateResult = await bulkCreate({
-            wrappedAlerts,
-            services,
-            sharedParams,
-            maxAlerts: params.maxSignals - result.createdSignalsCount,
-          });
-
-          addToSearchAfterReturn({ current: result, next: bulkCreateResult });
-        }
-
-        if (bulkCreateResult.alertsWereTruncated) {
-          break;
-        }
-      }
-
-      return bulkCreateResult;
+      return createAlertsFromEventsAndTerms({
+        eventsAndTerms,
+        sharedParams,
+        params,
+        services,
+        result,
+        isAlertSuppressionActive,
+      });
     };
 
     // separate route for multiple new terms
@@ -263,7 +205,6 @@ export const executeNewTermsAggregationApproach = async (execOptions: NewTermsEx
         logger,
         afterKey,
         createAlertsHook,
-        isAlertSuppressionActive,
         isLoggedRequestsEnabled,
       });
       loggedRequests.push(...(bulkCreateResult?.loggedRequests ?? []));
@@ -379,12 +320,9 @@ export const executeNewTermsAggregationApproach = async (execOptions: NewTermsEx
           docFetchSearchResult.aggregations.new_terms.buckets.length,
         ]);
 
-        const bulkCreateResult = await createAlertsHook(docFetchSearchResult);
+        const { alertsWereTruncated } = await createAlertsHook(docFetchSearchResult);
 
-        if (bulkCreateResult.alertsWereTruncated) {
-          result.warningMessages.push(
-            isAlertSuppressionActive ? getSuppressionMaxSignalsWarning() : getMaxSignalsWarning()
-          );
+        if (alertsWereTruncated) {
           break;
         }
       }

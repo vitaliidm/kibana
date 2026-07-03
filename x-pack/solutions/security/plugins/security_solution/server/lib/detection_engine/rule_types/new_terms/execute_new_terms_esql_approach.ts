@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-import { chunk, sum } from 'lodash';
+import { sum } from 'lodash';
 import { performance } from 'perf_hooks';
 
 import type { estypes } from '@elastic/elasticsearch';
@@ -13,11 +13,10 @@ import { esql } from '@elastic/esql';
 
 import type { NewTermsRuleParams } from '../../rule_schema';
 import type { SecurityExecutorOptions, SignalSource } from '../types';
-import { ALERT_CHUNK_MULTIPLIER, parseDateString, validateHistoryWindowStart } from './utils';
+import { parseDateString, validateHistoryWindowStart } from './utils';
 import {
   createSearchAfterReturnType,
   getUnprocessedExceptionsWarnings,
-  addToSearchAfterReturn,
   getMaxSignalsWarning,
   getSuppressionMaxSignalsWarning,
   makeFloatString,
@@ -27,16 +26,9 @@ import { buildEsqlSearchRequest } from '../esql/build_esql_search_request';
 import { performEsqlRequest } from '../esql/esql_request';
 import { logClusterShardFailuresEsql } from '../utils/log_cluster_shard_failures_esql';
 import { buildEventsSearchQuery } from '../utils/build_events_query';
-import { wrapNewTermsAlerts } from './wrap_new_terms_alerts';
-import { bulkCreateSuppressedNewTermsAlertsInMemory } from './bulk_create_suppressed_alerts_in_memory';
+import { createAlertsFromEventsAndTerms } from './create_alerts_from_events_and_terms';
 import type { EventsAndTerms } from './types';
-import { bulkCreate } from '../factories';
-import type { GenericBulkCreateResponse } from '../utils/bulk_create_with_suppression';
-import {
-  getIsAlertSuppressionActive,
-  alertSuppressionTypeGuard,
-} from '../utils/get_is_alert_suppression_active';
-import type { NewTermsAlertLatest } from '../../../../../common/api/detection_engine/model/alerts';
+import { getIsAlertSuppressionActive } from '../utils/get_is_alert_suppression_active';
 import type { RulePreviewLoggedRequest } from '../../../../../common/api/detection_engine/rule_preview/rule_preview.gen';
 import type { EsqlTable } from '../esql/esql_request';
 
@@ -225,77 +217,6 @@ const processMsearchResponsesToEventsAndTerms = ({
   }
 
   return eventsAndTerms;
-};
-
-type NewTermsExecutorSharedParams = NewTermsExecutorOptions['sharedParams'];
-
-interface CreateAlertsFromEventsParams {
-  eventsAndTerms: EventsAndTerms[];
-  sharedParams: NewTermsExecutorSharedParams;
-  params: NewTermsRuleParams;
-  services: NewTermsExecutorOptions['services'];
-  result: ReturnType<typeof createSearchAfterReturnType>;
-  isAlertSuppressionActive: boolean;
-}
-
-const createAlertsFromEventsAndTerms = async ({
-  eventsAndTerms,
-  sharedParams,
-  params,
-  services,
-  result,
-  isAlertSuppressionActive,
-}: CreateAlertsFromEventsParams): Promise<{ alertsWereTruncated: boolean }> => {
-  const eventAndTermsChunks = chunk(eventsAndTerms, ALERT_CHUNK_MULTIPLIER * params.maxSignals);
-  let bulkCreateResult: Omit<
-    GenericBulkCreateResponse<NewTermsAlertLatest>,
-    'suppressedItemsCount'
-  > = {
-    errors: [],
-    success: true,
-    enrichmentDuration: '0',
-    bulkCreateDuration: '0',
-    createdItemsCount: 0,
-    createdItems: [],
-    alertsWereTruncated: false,
-  };
-
-  for (let i = 0; i < eventAndTermsChunks.length; i++) {
-    const eventAndTermsChunk = eventAndTermsChunks[i];
-
-    if (isAlertSuppressionActive && alertSuppressionTypeGuard(params.alertSuppression)) {
-      bulkCreateResult = await bulkCreateSuppressedNewTermsAlertsInMemory({
-        sharedParams,
-        eventsAndTerms: eventAndTermsChunk,
-        toReturn: result,
-        services,
-        alertSuppression: params.alertSuppression,
-      });
-    } else {
-      const wrappedAlerts = wrapNewTermsAlerts({
-        sharedParams,
-        eventsAndTerms: eventAndTermsChunk,
-      });
-
-      bulkCreateResult = await bulkCreate({
-        wrappedAlerts,
-        services,
-        sharedParams,
-        maxAlerts: params.maxSignals - result.createdSignalsCount,
-      });
-
-      addToSearchAfterReturn({ current: result, next: bulkCreateResult });
-    }
-
-    if (bulkCreateResult.alertsWereTruncated) {
-      result.warningMessages.push(
-        isAlertSuppressionActive ? getSuppressionMaxSignalsWarning() : getMaxSignalsWarning()
-      );
-      break;
-    }
-  }
-
-  return { alertsWereTruncated: bulkCreateResult.alertsWereTruncated };
 };
 
 // Process new term combinations in batches to avoid issuing too many concurrent searches in a single _msearch
