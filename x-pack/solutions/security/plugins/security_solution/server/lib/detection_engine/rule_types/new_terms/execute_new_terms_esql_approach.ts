@@ -29,6 +29,7 @@ import { buildEventsSearchQuery } from '../utils/build_events_query';
 import { createAlertsFromEventsAndTerms } from './create_alerts_from_events_and_terms';
 import type { EventsAndTerms } from './types';
 import { getIsAlertSuppressionActive } from '../utils/get_is_alert_suppression_active';
+import { NEW_TERMS_MSEARCH_SHARD_FAILURE_MESSAGE } from '../translations';
 import type { RulePreviewLoggedRequest } from '../../../../../common/api/detection_engine/rule_preview/rule_preview.gen';
 import type { EsqlTable } from '../esql/esql_request';
 
@@ -125,7 +126,7 @@ interface BuildMsearchSearchesParams {
   secondaryTimestamp: string | undefined;
 }
 
-const buildMsearchSearchesForCombinationBatch = ({
+export const buildMsearchSearchesForCombinationBatch = ({
   batch,
   newTermsFields,
   inputIndex,
@@ -182,7 +183,7 @@ const buildMsearchSearchesForCombinationBatch = ({
   return searches;
 };
 
-const processMsearchResponsesToEventsAndTerms = ({
+export const processMsearchResponsesToEventsAndTerms = ({
   batch,
   responses,
   newTermsFields,
@@ -196,6 +197,8 @@ const processMsearchResponsesToEventsAndTerms = ({
   ruleExecutionLogger: NewTermsExecutorOptions['sharedParams']['ruleExecutionLogger'];
 }): EventsAndTerms[] => {
   const eventsAndTerms: EventsAndTerms[] = [];
+  let combinationsWithShardFailures = 0;
+  let sampleShardFailures: estypes.ShardFailure[] = [];
 
   for (let i = 0; i < batch.length; i++) {
     const response = responses[i];
@@ -205,15 +208,38 @@ const processMsearchResponsesToEventsAndTerms = ({
       )}: ${JSON.stringify(response.error)}`;
       result.errors.push(errorMsg);
       ruleExecutionLogger.warn(errorMsg);
-    } else if ('hits' in response && response.hits?.hits?.length > 0) {
-      const hit = response.hits.hits[0] as estypes.SearchHit<SignalSource>;
-      const combination = batch[i];
-      const newTerms = newTermsFields.map((field) => combination[field]);
-      eventsAndTerms.push({
-        event: hit,
-        newTerms,
-      });
+    } else {
+      // A sub-search can return 200 with partial shard failures. The detection decision was already
+      // made on complete data (the ES|QL query runs with allow_partial_results: false), but here a
+      // failed shard may hold the earliest matching document, so the fetched event can be the wrong
+      // one or missing entirely. Surface it rather than silently dropping the combination.
+      if (response._shards?.failed && response._shards.failed > 0) {
+        combinationsWithShardFailures += 1;
+        // Failures repeat across sub-searches, so keep one representative sample.
+        if (sampleShardFailures.length === 0 && response._shards.failures) {
+          sampleShardFailures = response._shards.failures;
+        }
+      }
+
+      if ('hits' in response && response.hits?.hits?.length > 0) {
+        const hit = response.hits.hits[0] as estypes.SearchHit<SignalSource>;
+        const combination = batch[i];
+        const newTerms = newTermsFields.map((field) => combination[field]);
+        eventsAndTerms.push({
+          event: hit,
+          newTerms,
+        });
+      }
     }
+  }
+
+  if (combinationsWithShardFailures > 0) {
+    const warning = NEW_TERMS_MSEARCH_SHARD_FAILURE_MESSAGE(
+      combinationsWithShardFailures,
+      JSON.stringify(sampleShardFailures)
+    );
+    result.warningMessages.push(warning);
+    ruleExecutionLogger.warn(warning);
   }
 
   return eventsAndTerms;
