@@ -32,6 +32,7 @@ import { InboxHistoryFeed } from './components/inbox_history_feed';
 import { InboxReasoning } from './components/inbox_reasoning';
 import { RespondFlyout } from './components/respond_flyout';
 import { TimeoutChip } from './components/timeout_chip';
+import { InboxWatchesNav } from '../watches/components/inbox_watches_nav';
 import * as i18n from './translations';
 
 const STATUS_COLOR: Record<InboxActionStatus, 'warning' | 'success' | 'danger'> = {
@@ -203,6 +204,8 @@ export const InboxActionsPage: React.FC = () => {
 
   return (
     <EuiPageSection paddingSize="l" css={{ paddingTop: euiTheme.size.l }}>
+      <InboxWatchesNav active="inbox" />
+      <EuiSpacer size="m" />
       <EuiTitle size="l">
         <h1>{i18n.PAGE_TITLE}</h1>
       </EuiTitle>

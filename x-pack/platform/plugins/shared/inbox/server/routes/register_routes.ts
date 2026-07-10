@@ -13,6 +13,8 @@ import { registerListInboxActionsRoute } from './actions/list_actions';
 import { registerListInboxActionsHistoryRoute } from './actions/list_history';
 import { registerListInboxActionsHistoryFacetsRoute } from './actions/list_history_facets';
 import { registerRespondToActionRoute } from './actions/respond_to_action';
+import { registerListWatchesRoute } from './watches/list_watches';
+import { registerGetWatchRoute } from './watches/get_watch';
 
 export interface RouteDependencies {
   router: InboxRouter;
@@ -32,4 +34,6 @@ export const registerRoutes = (dependencies: RouteDependencies) => {
   registerListInboxActionsHistoryRoute(dependencies);
   registerListInboxActionsHistoryFacetsRoute(dependencies);
   registerRespondToActionRoute(dependencies);
+  registerListWatchesRoute(dependencies);
+  registerGetWatchRoute(dependencies);
 };

@@ -16,6 +16,8 @@ import { QueryClient, QueryClientProvider } from '@kbn/react-query';
 import { PLUGIN_NAME } from '../common';
 import type { InboxActionDetailRendererLoader, InboxStartDependencies } from './types';
 import { InboxActionsPage } from './pages/inbox_actions';
+import { WatchesPage } from './pages/watches';
+import { WatchDetailPage } from './pages/watches/watch_detail';
 import { InboxDetailRendererProvider } from './hooks/use_action_detail_renderer';
 
 interface RenderAppParams {
@@ -63,7 +65,9 @@ export const renderApp = ({ coreStart, startDeps, params, detailRenderers }: Ren
             <InboxDetailRendererProvider renderers={detailRenderers}>
               <Router history={params.history}>
                 <Routes>
-                  <Route path="/" component={InboxActionsPage} />
+                  <Route path="/watches/:watchId" exact component={WatchDetailPage} />
+                  <Route path="/watches" exact component={WatchesPage} />
+                  <Route path="/" exact component={InboxActionsPage} />
                 </Routes>
               </Router>
             </InboxDetailRendererProvider>

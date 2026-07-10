@@ -48,4 +48,9 @@ export const queryKeys = {
     facets: (filters?: InboxActionsHistoryFacetsFilters) =>
       ['inbox', 'history', 'facets', filters] as const,
   },
+  watches: {
+    all: ['inbox', 'watches'] as const,
+    list: () => ['inbox', 'watches', 'list'] as const,
+    detail: (watchId: string | undefined) => ['inbox', 'watches', 'detail', watchId] as const,
+  },
 };
