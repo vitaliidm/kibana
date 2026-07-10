@@ -14,7 +14,7 @@ import type { RouteDependencies } from '../register_routes';
 import { getWatchesMockStore } from '../../services/watches_mock_store';
 
 const GetWatchRequestParams = z.object({
-  watchId: z.string().min(1),
+  watchId: z.string().min(1).max(128),
 });
 
 export const registerGetWatchRoute = ({ router, logger }: RouteDependencies) => {

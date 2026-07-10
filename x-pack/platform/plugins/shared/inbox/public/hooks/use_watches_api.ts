@@ -17,7 +17,10 @@ import {
 } from '../../common/watches';
 import { queryKeys } from '../query_keys';
 
-const retryOnTransientError = (_failureCount: number, error: unknown): boolean => {
+const retryOnTransientError = (failureCount: number, error: unknown): boolean => {
+  if (failureCount >= 3) {
+    return false;
+  }
   if (isHttpFetchError(error)) {
     return !error.response?.status || error.response.status >= 500;
   }
