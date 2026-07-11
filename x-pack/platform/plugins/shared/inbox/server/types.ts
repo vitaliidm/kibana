@@ -19,9 +19,6 @@ export interface InboxPluginSetup {
    * Register an {@link InboxActionProvider} that contributes actions under
    * a specific `sourceApp` namespace. Idempotent across the server lifetime
    * for a given `sourceApp` — registering twice throws.
-   *
-   * If the Inbox plugin is disabled (`xpack.inbox.enabled: false`), this
-   * call is a no-op, letting providers register unconditionally.
    */
   registerActionProvider(provider: InboxActionProvider): void;
 }

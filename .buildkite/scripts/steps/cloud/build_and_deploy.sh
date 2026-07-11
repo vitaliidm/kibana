@@ -151,10 +151,8 @@ if [ -z "${CLOUD_DEPLOYMENT_ID}" ] || [ "${CLOUD_DEPLOYMENT_ID}" = 'null' ]; the
   retry 5 60 ecctl deployment update "$CLOUD_DEPLOYMENT_ID" --track --output json --file /tmp/stack_monitoring.json > "$ECCTL_LOGS"
 
   echo "Enabling verbose logging..."
-  # Preserve PR-specific settings from deploy.json (e.g. xpack.inbox.enabled) when
-  # applying verbose logging — a bare assignment would wipe user_settings_yaml.
   ecctl deployment show "$CLOUD_DEPLOYMENT_ID" --generate-update-payload | jq '
-    .resources.kibana[0].plan.kibana.user_settings_yaml = "logging.root.level: all\nxpack.inbox.enabled: true"
+    .resources.kibana[0].plan.kibana.user_settings_yaml = "logging.root.level: all"
     ' > /tmp/verbose_logging.json
   ecctl deployment update "$CLOUD_DEPLOYMENT_ID" --track --output json --file /tmp/verbose_logging.json > "$ECCTL_LOGS"
 else

@@ -10,7 +10,7 @@ import { InboxPublicPlugin } from './plugin';
 import type { InboxClientConfig, InboxSetupDependencies } from './types';
 import { APP_PATH, PLUGIN_ID } from '../common';
 
-const createPlugin = (config: InboxClientConfig) => {
+const createPlugin = (config: InboxClientConfig = { enabled: false }) => {
   const context = coreMock.createPluginInitializerContext(config);
   return new InboxPublicPlugin(context);
 };
@@ -19,19 +19,19 @@ const noopSetupDeps: InboxSetupDependencies = {} as InboxSetupDependencies;
 
 describe('InboxPublicPlugin', () => {
   describe('setup()', () => {
-    it('does NOT register the Inbox application when the plugin is disabled', () => {
+    it('registers the Inbox application even when config.enabled is false (POC always-on)', () => {
       const coreSetup = coreMock.createSetup();
       const plugin = createPlugin({ enabled: false });
 
       const contract = plugin.setup(coreSetup, noopSetupDeps);
 
-      expect(coreSetup.application.register).not.toHaveBeenCalled();
+      expect(coreSetup.application.register).toHaveBeenCalledTimes(1);
       expect(contract).toMatchObject({
         registerActionDetailRenderer: expect.any(Function),
       });
     });
 
-    it('registers a standalone Inbox application at APP_PATH when enabled', () => {
+    it('registers a standalone Inbox application at APP_PATH', () => {
       const coreSetup = coreMock.createSetup();
       const plugin = createPlugin({ enabled: true });
 
@@ -61,20 +61,11 @@ describe('InboxPublicPlugin', () => {
       );
     });
 
-    it('exposes registerActionDetailRenderer regardless of enabled state', () => {
-      const coreSetupEnabled = coreMock.createSetup();
-      const coreSetupDisabled = coreMock.createSetup();
-      const enabledContract = createPlugin({ enabled: true }).setup(
-        coreSetupEnabled,
-        noopSetupDeps
-      );
-      const disabledContract = createPlugin({ enabled: false }).setup(
-        coreSetupDisabled,
-        noopSetupDeps
-      );
+    it('exposes registerActionDetailRenderer', () => {
+      const coreSetup = coreMock.createSetup();
+      const contract = createPlugin({ enabled: true }).setup(coreSetup, noopSetupDeps);
 
-      expect(typeof enabledContract.registerActionDetailRenderer).toBe('function');
-      expect(typeof disabledContract.registerActionDetailRenderer).toBe('function');
+      expect(typeof contract.registerActionDetailRenderer).toBe('function');
     });
 
     it('throws when the same sourceApp is registered twice', () => {
