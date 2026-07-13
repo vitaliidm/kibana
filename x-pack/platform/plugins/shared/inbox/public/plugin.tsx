@@ -32,9 +32,12 @@ export class InboxPublicPlugin
   implements
     Plugin<InboxPublicSetup, InboxPublicStart, InboxSetupDependencies, InboxStartDependencies>
 {
+  private readonly config: InboxClientConfig;
   private readonly detailRenderers = new Map<string, InboxActionDetailRendererLoader>();
 
-  constructor(_context: PluginInitializerContext<InboxClientConfig>) {}
+  constructor(context: PluginInitializerContext<InboxClientConfig>) {
+    this.config = context.config.get();
+  }
 
   public setup(
     coreSetup: CoreSetup<InboxStartDependencies, InboxPublicStart>,
@@ -52,8 +55,10 @@ export class InboxPublicPlugin
       this.detailRenderers.set(sourceApp, load);
     };
 
-    // POC: always register the app (skip xpack.inbox.enabled gate) so PR cloud
-    // deploys work without Cloud user_settings_yaml allowlisting.
+    if (!this.config.enabled) {
+      return { registerActionDetailRenderer };
+    }
+
     coreSetup.application.register({
       id: PLUGIN_ID,
       title: APP_TITLE,

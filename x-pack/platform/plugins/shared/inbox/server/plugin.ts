@@ -29,6 +29,7 @@ import type {
 } from './types';
 import { registerRoutes } from './routes/register_routes';
 import { InboxActionRegistry } from './services/inbox_action_registry';
+import type { InboxActionProvider } from './services/inbox_action_provider';
 
 /**
  * Resolves the active space id for a request. The routes accept this as a
@@ -43,17 +44,26 @@ export class InboxPlugin
     Plugin<InboxPluginSetup, InboxPluginStart, InboxSetupDependencies, InboxStartDependencies>
 {
   private readonly logger: Logger;
+  private readonly config: InboxConfig;
 
   constructor(context: PluginInitializerContext<InboxConfig>) {
     this.logger = context.logger.get();
+    this.config = context.config.get();
   }
 
   setup(
     coreSetup: CoreSetup<InboxStartDependencies, InboxPluginStart>,
     { features }: InboxSetupDependencies
   ): InboxPluginSetup {
-    // POC: always register features + routes (skip xpack.inbox.enabled gate) so
-    // PR cloud deploys work without Cloud user_settings_yaml allowlisting.
+    if (!this.config.enabled) {
+      this.logger.info('Inbox plugin is disabled');
+      return {
+        registerActionProvider: (_provider: InboxActionProvider) => {
+          // No-op so providers can unconditionally call this in their own setup().
+        },
+      };
+    }
+
     this.logger.info('Setting up Inbox plugin');
 
     features.registerKibanaFeature({
