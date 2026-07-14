@@ -54,7 +54,7 @@ Start Kibana + ES locally (`yarn start --no-base-path`).
 Floor is the worked example: capabilities are **projected from executable steps**,
 not invented in `with.watch.callables`.
 
-1. Enable Inbox and restart so managed watches install/reconcile (`system-inbox-watch-floor` v3+).
+1. Enable Inbox and restart so managed watches install/reconcile (`system-inbox-watch-floor` v4+ with `visibility.selectors: ['watch']`).
 2. Open `/app/inbox/watches` → click **Watch Floor** → **Agent capabilities** should list **Alert analysis** (from `skill://alert-analysis` in YAML). Catalog cards do not show callables.
 3. Officer/Dark/Deep may show empty capabilities until they add `ai.agent` / `workflow.execute` steps (copy Floor).
 4. Trigger a Floor run (managed workflows are hidden in Workflows UI unless **Show managed workflows** is on):

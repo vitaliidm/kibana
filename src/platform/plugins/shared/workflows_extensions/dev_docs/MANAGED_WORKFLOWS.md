@@ -353,7 +353,10 @@ export const MY_WORKFLOW: ManagedWorkflowDefinition = {
 };
 ```
 
-The platform persists visibility as namespaced contexts such as `selector:rule_action` and `solution:security`. Selectors that opt into managed workflows query with a matching context, which returns:
+The platform persists visibility as namespaced contexts such as `selector:rule_action`,
+`selector:watch`, and `solution:security`. Available selector ids are declared in
+`MANAGED_WORKFLOW_SELECTORS` (`rule_action`, `watch`). Selectors that opt into managed
+workflows query with a matching context, which returns:
 
 - all unmanaged workflows visible to the user
 - only managed workflows whose definition opted into that context

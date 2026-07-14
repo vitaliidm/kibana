@@ -26,12 +26,19 @@ const MANAGEMENT = {
 
 const PLUGIN_ID = 'inbox';
 
+/** Discoverable in Watch catalog / WorkflowSelector surfaces that opt into `watch`. */
+const VISIBILITY = {
+  selectors: ['watch'],
+  solutions: ['security'],
+} as const;
+
 export const INBOX_WATCH_FLOOR_WORKFLOW = {
   billable: false,
   id: INBOX_WATCH_FLOOR_WORKFLOW_ID,
   management: MANAGEMENT,
   pluginId: PLUGIN_ID,
-  version: 3,
+  version: 4,
+  visibility: VISIBILITY,
   yaml: WATCH_FLOOR_YAML,
 } as const satisfies ManagedWorkflowDefinition;
 
@@ -40,7 +47,8 @@ export const INBOX_WATCH_OFFICER_WORKFLOW = {
   id: INBOX_WATCH_OFFICER_WORKFLOW_ID,
   management: MANAGEMENT,
   pluginId: PLUGIN_ID,
-  version: 3,
+  version: 4,
+  visibility: VISIBILITY,
   yaml: WATCH_OFFICER_YAML,
 } as const satisfies ManagedWorkflowDefinition;
 
@@ -49,7 +57,8 @@ export const INBOX_WATCH_DARK_WORKFLOW = {
   id: INBOX_WATCH_DARK_WORKFLOW_ID,
   management: MANAGEMENT,
   pluginId: PLUGIN_ID,
-  version: 3,
+  version: 4,
+  visibility: VISIBILITY,
   yaml: WATCH_DARK_YAML,
 } as const satisfies ManagedWorkflowDefinition;
 
@@ -58,7 +67,8 @@ export const INBOX_WATCH_DEEP_WORKFLOW = {
   id: INBOX_WATCH_DEEP_WORKFLOW_ID,
   management: MANAGEMENT,
   pluginId: PLUGIN_ID,
-  version: 3,
+  version: 4,
+  visibility: VISIBILITY,
   yaml: WATCH_DEEP_YAML,
 } as const satisfies ManagedWorkflowDefinition;
 

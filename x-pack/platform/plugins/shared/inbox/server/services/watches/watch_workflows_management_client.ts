@@ -26,6 +26,8 @@ export interface WatchWorkflowsManagementClient {
       page?: number;
       enabled?: boolean[];
       managedFilter?: 'all' | 'managed' | 'unmanaged';
+      /** Flattened managed visibility contexts, e.g. `selector:watch`. */
+      visibilityContext?: string[];
     },
     spaceId: string,
     options?: { includeExecutionHistory?: boolean; includeManagedExecutionHistory?: boolean }
