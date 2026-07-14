@@ -5,6 +5,9 @@ steps:
     agents:
       machineType: n2-standard-2
       preemptible: true
+      # Docker cloud image build OOMs the default ~105GB disk (gzip: No space left on device).
+      # Match .buildkite/pipelines/build_pr_and_deploy_cloud.yml.
+      diskSizeGb: 150
     depends_on:
       - build
     timeout_in_minutes: 30
