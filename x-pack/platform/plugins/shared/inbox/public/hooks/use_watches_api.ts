@@ -5,13 +5,15 @@
  * 2.0.
  */
 
-import { useQuery } from '@kbn/react-query';
+import { useMutation, useQuery, useQueryClient } from '@kbn/react-query';
 import { isHttpFetchError } from '@kbn/core-http-browser';
 import { useKibana } from '@kbn/kibana-react-plugin/public';
 import { API_VERSIONS } from '@kbn/inbox-common';
 import {
   INBOX_WATCHES_URL,
   buildWatchUrl,
+  type CreateWatchRequest,
+  type CreateWatchResponse,
   type GetWatchResponse,
   type ListWatchesResponse,
 } from '../../common/watches';
@@ -56,5 +58,38 @@ export const useWatch = (watchId: string | undefined) => {
     },
     enabled: Boolean(watchId),
     retry: retryOnTransientError,
+  });
+};
+
+export const useCreateWatch = () => {
+  const { services } = useKibana();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (body: CreateWatchRequest): Promise<CreateWatchResponse> =>
+      services.http!.post<CreateWatchResponse>(INBOX_WATCHES_URL, {
+        version: API_VERSIONS.internal.v1,
+        body: JSON.stringify(body),
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.watches.list() });
+    },
+  });
+};
+
+export const useDeleteWatch = () => {
+  const { services } = useKibana();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (watchId: string): Promise<void> => {
+      await services.http!.delete(buildWatchUrl(watchId), {
+        version: API_VERSIONS.internal.v1,
+      });
+    },
+    onSuccess: async (_data, watchId) => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.watches.list() });
+      await queryClient.removeQueries({ queryKey: queryKeys.watches.detail(watchId) });
+    },
   });
 };

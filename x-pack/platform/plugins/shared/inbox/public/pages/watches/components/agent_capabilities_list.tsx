@@ -11,27 +11,26 @@ import {
   EuiBadge,
   EuiFlexGroup,
   EuiFlexItem,
-  EuiIcon,
   EuiPanel,
   EuiSwitch,
   EuiText,
   useEuiTheme,
 } from '@elastic/eui';
-import { skillLabel, type WorkerRef } from '../../../../common/watches';
+import type { WatchCallableRef } from '../../../../common/watches';
 import * as i18n from '../translations';
 
-interface WorkflowAssignmentListProps {
-  workers: WorkerRef[];
-  onToggle?: (workerId: string) => void;
+interface AgentCapabilitiesListProps {
+  callables: WatchCallableRef[];
+  onToggle?: (callableId: string) => void;
 }
 
-export const WorkflowAssignmentList: React.FC<WorkflowAssignmentListProps> = ({
-  workers,
+export const AgentCapabilitiesList: React.FC<AgentCapabilitiesListProps> = ({
+  callables,
   onToggle,
 }) => {
   const { euiTheme } = useEuiTheme();
 
-  if (workers.length === 0) {
+  if (callables.length === 0) {
     return (
       <EuiText size="s" color="subdued">
         —
@@ -47,35 +46,35 @@ export const WorkflowAssignmentList: React.FC<WorkflowAssignmentListProps> = ({
         gap: ${euiTheme.size.s};
       `}
     >
-      {workers.map((worker) => (
+      {callables.map((callable) => (
         <EuiPanel
-          key={worker.id}
+          key={callable.id}
           hasBorder
           paddingSize="m"
           css={css`
-            opacity: ${worker.enabled ? 1 : 0.55};
+            opacity: ${callable.enabled ? 1 : 0.55};
           `}
         >
           <EuiFlexGroup alignItems="center" justifyContent="spaceBetween" gutterSize="s">
             <EuiFlexItem>
               <EuiText size="s">
-                <strong>{worker.name}</strong>
+                <strong>{callable.name}</strong>
               </EuiText>
             </EuiFlexItem>
             <EuiFlexItem grow={false}>
               <EuiFlexGroup gutterSize="s" alignItems="center" responsive={false}>
                 <EuiFlexItem grow={false}>
                   <EuiText size="xs" color="subdued">
-                    {worker.lastRun
-                      ? `${i18n.LAST_RUN_PREFIX} ${worker.lastRun}`
-                      : i18n.NEVER_RUN_WORKFLOW}
+                    {callable.lastRun
+                      ? `${i18n.LAST_RUN_PREFIX} ${callable.lastRun}`
+                      : i18n.NEVER_RUN_CAPABILITY}
                   </EuiText>
                 </EuiFlexItem>
                 <EuiFlexItem grow={false}>
                   <EuiSwitch
                     label=""
-                    checked={worker.enabled}
-                    onChange={() => onToggle?.(worker.id)}
+                    checked={callable.enabled}
+                    onChange={() => onToggle?.(callable.id)}
                     compressed
                     showLabel={false}
                   />
@@ -94,28 +93,20 @@ export const WorkflowAssignmentList: React.FC<WorkflowAssignmentListProps> = ({
             `}
           >
             <EuiFlexItem grow={false}>
-              <EuiBadge
-                color="hollow"
-                iconType={worker.trigger.type === 'schedule' ? 'clock' : 'bolt'}
-              >
-                {worker.trigger.summary}
+              <EuiBadge color={callable.kind === 'workflow' ? 'accent' : 'primary'}>
+                {callable.kind === 'workflow' ? i18n.KIND_WORKFLOW : i18n.KIND_SKILL}
               </EuiBadge>
             </EuiFlexItem>
             <EuiFlexItem grow={false}>
-              <EuiIcon type="arrowRight" size="s" color="subdued" />
-            </EuiFlexItem>
-            <EuiFlexItem grow={false}>
-              <EuiBadge color="primary">{skillLabel(worker.skillId)}</EuiBadge>
-            </EuiFlexItem>
-            <EuiFlexItem grow={false}>
-              <EuiIcon type="arrowRight" size="s" color="subdued" />
-            </EuiFlexItem>
-            <EuiFlexItem grow={false}>
-              <EuiBadge color="success">
-                {worker.outcome}
-                {worker.gated ? ` · ${i18n.GATED_BADGE}` : ''}
+              <EuiBadge color="hollow" iconType="bolt">
+                {callable.summary}
               </EuiBadge>
             </EuiFlexItem>
+            {callable.gated ? (
+              <EuiFlexItem grow={false}>
+                <EuiBadge color="warning">{i18n.GATED_BADGE}</EuiBadge>
+              </EuiFlexItem>
+            ) : null}
           </EuiFlexGroup>
         </EuiPanel>
       ))}

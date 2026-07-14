@@ -121,8 +121,30 @@ export const NEW_WATCH_TITLE = i18n.translate('xpack.inbox.watches.newWatch.titl
 });
 
 export const NEW_WATCH_DESCRIPTION = i18n.translate('xpack.inbox.watches.newWatch.description', {
-  defaultMessage: 'Define a mandate, schedule, autonomy and skills',
+  defaultMessage: 'Create a custom tagged workflow',
 });
+
+export const NEW_CUSTOM_WATCH_NAME = i18n.translate('xpack.inbox.watches.newWatch.defaultName', {
+  defaultMessage: 'Custom watch',
+});
+
+export const NEW_CUSTOM_WATCH_DESCRIPTION = i18n.translate(
+  'xpack.inbox.watches.newWatch.defaultDescription',
+  {
+    defaultMessage: 'Custom watch scaffold — edit the workflow YAML to add agent skills.',
+  }
+);
+
+export const CUSTOM_WATCH_CREATED = i18n.translate('xpack.inbox.watches.newWatch.created', {
+  defaultMessage: 'Custom watch created',
+});
+
+export const CUSTOM_WATCH_CREATE_FAILED = i18n.translate(
+  'xpack.inbox.watches.newWatch.createFailed',
+  {
+    defaultMessage: 'Failed to create custom watch',
+  }
+);
 
 export const LOADING_WATCHES = i18n.translate('xpack.inbox.watches.loading', {
   defaultMessage: 'Loading watches…',
@@ -150,6 +172,43 @@ export const SAVE = i18n.translate('xpack.inbox.watches.detail.save', {
 
 export const DISCARD = i18n.translate('xpack.inbox.watches.detail.discard', {
   defaultMessage: 'Discard',
+});
+
+export const DELETE = i18n.translate('xpack.inbox.watches.detail.delete', {
+  defaultMessage: 'Delete',
+});
+
+export const DELETE_CONFIRM_TITLE = i18n.translate(
+  'xpack.inbox.watches.detail.deleteConfirm.title',
+  {
+    defaultMessage: 'Delete this watch?',
+  }
+);
+
+export const deleteConfirmBody = (name: string) =>
+  i18n.translate('xpack.inbox.watches.detail.deleteConfirm.body', {
+    defaultMessage:
+      'Permanently delete "{name}" and its workflow. Managed catalog watches cannot be deleted here.',
+    values: { name },
+  });
+
+export const DELETE_CONFIRM_BUTTON = i18n.translate(
+  'xpack.inbox.watches.detail.deleteConfirm.confirm',
+  {
+    defaultMessage: 'Delete watch',
+  }
+);
+
+export const DELETE_CANCEL = i18n.translate('xpack.inbox.watches.detail.deleteConfirm.cancel', {
+  defaultMessage: 'Cancel',
+});
+
+export const DELETE_SUCCESS = i18n.translate('xpack.inbox.watches.detail.deleteSuccess', {
+  defaultMessage: 'Watch deleted',
+});
+
+export const DELETE_FAILED = i18n.translate('xpack.inbox.watches.detail.deleteFailed', {
+  defaultMessage: 'Failed to delete watch',
 });
 
 export const IDENTITY_TITLE = i18n.translate('xpack.inbox.watches.detail.identity.title', {
@@ -192,6 +251,21 @@ export const SCHEDULE_SUBTITLE = i18n.translate('xpack.inbox.watches.detail.sche
   defaultMessage: "when it's on duty, how it sweeps, where work goes after",
 });
 
+export const WORKFLOW_TRIGGERS_LABEL = i18n.translate(
+  'xpack.inbox.watches.detail.schedule.triggersLabel',
+  {
+    defaultMessage: 'Workflow triggers',
+  }
+);
+
+export const SCHEDULE_PROJECTION_NOTE = i18n.translate(
+  'xpack.inbox.watches.detail.schedule.projectionNote',
+  {
+    defaultMessage:
+      'Projected from the backing workflow. Edits below are local stubs until YAML write-back lands.',
+  }
+);
+
 export const CADENCE_LABEL = i18n.translate('xpack.inbox.watches.detail.schedule.cadence', {
   defaultMessage: 'Cadence',
 });
@@ -200,29 +274,21 @@ export const HANDOFF_LABEL = i18n.translate('xpack.inbox.watches.detail.schedule
   defaultMessage: 'Hand-off',
 });
 
-export const ASSIGNED_WORKFLOWS_TITLE = i18n.translate(
-  'xpack.inbox.watches.detail.workflows.heading',
+export const AGENT_CAPABILITIES_TITLE = i18n.translate(
+  'xpack.inbox.watches.detail.capabilities.heading',
   {
-    defaultMessage: 'Assigned workflows',
+    defaultMessage: 'Agent capabilities',
   }
 );
 
-export const assignedWorkflowsSubtitle = (on: number, total: number) =>
-  i18n.translate('xpack.inbox.watches.detail.workflows.subtitle', {
-    defaultMessage: '{on} of {total} on — run under this watch’s schedule and autonomy',
+export const agentCapabilitiesSubtitle = (on: number, total: number) =>
+  i18n.translate('xpack.inbox.watches.detail.capabilities.subtitle', {
+    defaultMessage: '{on} of {total} on — skills and workflows this watch’s agent may call',
     values: { on, total },
   });
 
-export const ASSIGN_WORKFLOW = i18n.translate('xpack.inbox.watches.detail.workflows.assign', {
-  defaultMessage: 'Assign',
-});
-
-export const SKILLS_TITLE = i18n.translate('xpack.inbox.watches.detail.skills.title', {
-  defaultMessage: 'Skills',
-});
-
-export const SKILLS_SUBTITLE = i18n.translate('xpack.inbox.watches.detail.skills.subtitle', {
-  defaultMessage: 'what its agents can do',
+export const ADD_CAPABILITY = i18n.translate('xpack.inbox.watches.detail.capabilities.add', {
+  defaultMessage: 'Add',
 });
 
 export const DATA_BOUNDARIES_TITLE = i18n.translate(
@@ -248,36 +314,16 @@ export const COL_TIME = i18n.translate('xpack.inbox.watches.detail.recentRuns.co
   defaultMessage: 'Time',
 });
 
-export const COL_WORKFLOW = i18n.translate('xpack.inbox.watches.detail.recentRuns.col.workflow', {
-  defaultMessage: 'Workflow',
+export const COL_STATUS = i18n.translate('xpack.inbox.watches.detail.recentRuns.col.status', {
+  defaultMessage: 'Status',
 });
 
-export const COL_ACTION = i18n.translate('xpack.inbox.watches.detail.recentRuns.col.action', {
-  defaultMessage: 'Action',
+export const COL_SUMMARY = i18n.translate('xpack.inbox.watches.detail.recentRuns.col.summary', {
+  defaultMessage: 'Steps',
 });
 
-export const COL_WHAT = i18n.translate('xpack.inbox.watches.detail.recentRuns.col.what', {
-  defaultMessage: 'What',
-});
-
-export const COL_OUTCOME = i18n.translate('xpack.inbox.watches.detail.recentRuns.col.outcome', {
-  defaultMessage: 'Outcome',
-});
-
-export const ACTION_READ = i18n.translate('xpack.inbox.watches.action.read', {
-  defaultMessage: 'Read',
-});
-
-export const ACTION_DRAFT = i18n.translate('xpack.inbox.watches.action.draft', {
-  defaultMessage: 'Draft',
-});
-
-export const ACTION_GATED = i18n.translate('xpack.inbox.watches.action.gated', {
-  defaultMessage: 'Gated action',
-});
-
-export const ACTION_AUTO = i18n.translate('xpack.inbox.watches.action.auto', {
-  defaultMessage: 'Auto-executed',
+export const COL_TRIGGER = i18n.translate('xpack.inbox.watches.detail.recentRuns.col.trigger', {
+  defaultMessage: 'Trigger',
 });
 
 export const NAV_INBOX = i18n.translate('xpack.inbox.watches.nav.inbox', {
@@ -332,14 +378,22 @@ export const HANDOFF_NONE = i18n.translate('xpack.inbox.watches.handoff.none', {
   defaultMessage: 'No hand-off',
 });
 
-export const LAST_RUN_PREFIX = i18n.translate('xpack.inbox.watches.workflow.lastRunPrefix', {
+export const LAST_RUN_PREFIX = i18n.translate('xpack.inbox.watches.capability.lastRunPrefix', {
   defaultMessage: 'last run',
 });
 
-export const NEVER_RUN_WORKFLOW = i18n.translate('xpack.inbox.watches.workflow.neverRun', {
+export const NEVER_RUN_CAPABILITY = i18n.translate('xpack.inbox.watches.capability.neverRun', {
   defaultMessage: 'never run',
 });
 
-export const GATED_BADGE = i18n.translate('xpack.inbox.watches.workflow.gated', {
+export const GATED_BADGE = i18n.translate('xpack.inbox.watches.capability.gated', {
   defaultMessage: 'gated',
+});
+
+export const KIND_SKILL = i18n.translate('xpack.inbox.watches.capability.kind.skill', {
+  defaultMessage: 'Skill',
+});
+
+export const KIND_WORKFLOW = i18n.translate('xpack.inbox.watches.capability.kind.workflow', {
+  defaultMessage: 'Workflow',
 });

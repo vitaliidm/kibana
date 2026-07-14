@@ -15,7 +15,7 @@ import {
 } from '../../../common/watches';
 import { registerGetWatchRoute } from './get_watch';
 import { InboxActionRegistry } from '../../services/inbox_action_registry';
-import { resetWatchesMockStore } from '../../services/watches_mock_store';
+import type { WatchWorkflowProjectionService } from '../../services/watches/watch_workflow_projection_service';
 
 const getSpaceId = () => 'default';
 
@@ -36,29 +36,48 @@ describe('GET /internal/inbox/watches/{watchId}', () => {
   let router: Router;
   let logger: ReturnType<typeof loggerMock.create>;
   let registry: InboxActionRegistry;
+  let projection: { get: jest.Mock };
 
   beforeEach(() => {
-    resetWatchesMockStore();
     router = httpServiceMock.createRouter();
     logger = loggerMock.create();
     registry = new InboxActionRegistry(logger);
-    registerGetWatchRoute({ router, logger, registry, getSpaceId });
+    projection = {
+      get: jest.fn().mockImplementation(async (id: string) => {
+        if (id === 'missing') return undefined;
+        return {
+          watch: {
+            id,
+            name: 'Watch Floor',
+            callables: [{ id: 'alert-triage' }],
+            recentRuns: [],
+          },
+        };
+      }),
+    };
+    registerGetWatchRoute({
+      router,
+      logger,
+      registry,
+      getSpaceId,
+      getWatchProjection: () => projection as unknown as WatchWorkflowProjectionService,
+    });
   });
 
-  it('returns a watch and its workers', async () => {
+  it('returns a projected watch', async () => {
     const handler = getHandler(router);
     const request = httpServerMock.createKibanaRequest({
       method: 'get',
-      path: buildWatchUrl('floor'),
-      params: { watchId: 'floor' },
+      path: buildWatchUrl('system-inbox-watch-floor'),
+      params: { watchId: 'system-inbox-watch-floor' },
     });
     const response = httpServerMock.createResponseFactory();
     await handler({} as never, request, response);
 
     expect(response.ok).toHaveBeenCalled();
     const [[{ body }]] = response.ok.mock.calls as unknown as [[{ body: GetWatchResponse }]];
-    expect(body.watch.id).toBe('floor');
-    expect(body.workers.length).toBeGreaterThan(0);
+    expect(body.watch.id).toBe('system-inbox-watch-floor');
+    expect(body).not.toHaveProperty('workers');
   });
 
   it('returns 404 for unknown watches', async () => {

@@ -11,7 +11,7 @@ import { API_VERSIONS } from '@kbn/inbox-common';
 import { INBOX_WATCHES_URL, type ListWatchesResponse } from '../../../common/watches';
 import { registerListWatchesRoute } from './list_watches';
 import { InboxActionRegistry } from '../../services/inbox_action_registry';
-import { resetWatchesMockStore } from '../../services/watches_mock_store';
+import type { WatchWorkflowProjectionService } from '../../services/watches/watch_workflow_projection_service';
 
 const getSpaceId = () => 'default';
 
@@ -30,16 +30,34 @@ describe('GET /internal/inbox/watches', () => {
   let router: Router;
   let logger: ReturnType<typeof loggerMock.create>;
   let registry: InboxActionRegistry;
+  let projection: { list: jest.Mock };
 
   beforeEach(() => {
-    resetWatchesMockStore();
     router = httpServiceMock.createRouter();
     logger = loggerMock.create();
     registry = new InboxActionRegistry(logger);
-    registerListWatchesRoute({ router, logger, registry, getSpaceId });
+    projection = {
+      list: jest.fn().mockResolvedValue({
+        watches: [
+          {
+            id: 'system-inbox-watch-floor',
+            name: 'Watch Floor',
+            tags: ['watch', 'watch-floor'],
+            callables: [{ id: 'alert-triage' }],
+          },
+        ],
+      }),
+    };
+    registerListWatchesRoute({
+      router,
+      logger,
+      registry,
+      getSpaceId,
+      getWatchProjection: () => projection as unknown as WatchWorkflowProjectionService,
+    });
   });
 
-  it('returns seeded watches and workers', async () => {
+  it('returns projected watches', async () => {
     const handler = getHandler(router);
     const request = httpServerMock.createKibanaRequest({
       method: 'get',
@@ -50,7 +68,7 @@ describe('GET /internal/inbox/watches', () => {
 
     expect(response.ok).toHaveBeenCalled();
     const [[{ body }]] = response.ok.mock.calls as unknown as [[{ body: ListWatchesResponse }]];
-    expect(body.watches.length).toBeGreaterThanOrEqual(5);
-    expect(body.workers.length).toBeGreaterThan(0);
+    expect(body.watches[0].id).toBe('system-inbox-watch-floor');
+    expect(body).not.toHaveProperty('workers');
   });
 });

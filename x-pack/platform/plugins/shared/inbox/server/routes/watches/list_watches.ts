@@ -9,9 +9,13 @@ import { API_VERSIONS, INTERNAL_API_ACCESS } from '@kbn/inbox-common';
 import { INBOX_API_PRIVILEGE_READ } from '../../../common';
 import { INBOX_WATCHES_URL, type ListWatchesResponse } from '../../../common/watches';
 import type { RouteDependencies } from '../register_routes';
-import { getWatchesMockStore } from '../../services/watches_mock_store';
 
-export const registerListWatchesRoute = ({ router, logger }: RouteDependencies) => {
+export const registerListWatchesRoute = ({
+  router,
+  logger,
+  getSpaceId,
+  getWatchProjection,
+}: RouteDependencies) => {
   router.versioned
     .get({
       path: INBOX_WATCHES_URL,
@@ -19,7 +23,7 @@ export const registerListWatchesRoute = ({ router, logger }: RouteDependencies) 
       security: {
         authz: { requiredPrivileges: [INBOX_API_PRIVILEGE_READ] },
       },
-      summary: 'List watches (POC)',
+      summary: 'List watches (workflow projection)',
     })
     .addVersion(
       {
@@ -28,9 +32,16 @@ export const registerListWatchesRoute = ({ router, logger }: RouteDependencies) 
           request: {},
         },
       },
-      async (_context, _request, response) => {
+      async (_context, request, response) => {
         try {
-          const body: ListWatchesResponse = getWatchesMockStore().list();
+          const projection = getWatchProjection?.();
+          if (!projection) {
+            return response.customError({
+              statusCode: 503,
+              body: { message: 'Watch projection service is not available' },
+            });
+          }
+          const body: ListWatchesResponse = await projection.list(getSpaceId(request));
           return response.ok({ body });
         } catch (error) {
           logger.error(`Failed to list watches: ${error}`);

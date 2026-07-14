@@ -20,7 +20,7 @@ import {
 } from '@elastic/eui';
 import { useHistory } from 'react-router-dom';
 import { useKibana } from '@kbn/kibana-react-plugin/public';
-import { useWatches } from '../../hooks/use_watches_api';
+import { useWatches, useCreateWatch } from '../../hooks/use_watches_api';
 import { CoverageStrip } from './components/coverage_strip';
 import { WatchCardGrid } from './components/watch_card_grid';
 import { InboxWatchesNav } from './components/inbox_watches_nav';
@@ -31,6 +31,7 @@ export const WatchesPage: React.FC = () => {
   const history = useHistory();
   const { services } = useKibana();
   const { data, isLoading, error, refetch } = useWatches();
+  const createWatch = useCreateWatch();
 
   const onSelectWatch = useCallback(
     (watchId: string) => {
@@ -40,8 +41,24 @@ export const WatchesPage: React.FC = () => {
   );
 
   const onNewWatch = useCallback(() => {
-    services.notifications?.toasts.addInfo(i18n.POC_STUB_TOAST);
-  }, [services.notifications]);
+    createWatch.mutate(
+      {
+        name: i18n.NEW_CUSTOM_WATCH_NAME,
+        description: i18n.NEW_CUSTOM_WATCH_DESCRIPTION,
+      },
+      {
+        onSuccess: (result) => {
+          services.notifications?.toasts.addSuccess(i18n.CUSTOM_WATCH_CREATED);
+          history.push(`/watches/${result.watch.id}`);
+        },
+        onError: () => {
+          services.notifications?.toasts.addError(new Error(i18n.CUSTOM_WATCH_CREATE_FAILED), {
+            title: i18n.CUSTOM_WATCH_CREATE_FAILED,
+          });
+        },
+      }
+    );
+  }, [createWatch, history, services.notifications]);
 
   const sectionCount = useMemo(() => {
     if (!data) return '';

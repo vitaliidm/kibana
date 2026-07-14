@@ -30,6 +30,12 @@ import type {
 import { registerRoutes } from './routes/register_routes';
 import { InboxActionRegistry } from './services/inbox_action_registry';
 import type { InboxActionProvider } from './services/inbox_action_provider';
+import {
+  installStaticWatchWorkflows,
+  registerManagedWatchWorkflowOwner,
+} from './managed_workflows';
+import { WatchWorkflowProjectionService } from './services/watches/watch_workflow_projection_service';
+import type { WatchWorkflowsManagementClient } from './services/watches/watch_workflows_management_client';
 
 /**
  * Resolves the active space id for a request. The routes accept this as a
@@ -45,6 +51,7 @@ export class InboxPlugin
 {
   private readonly logger: Logger;
   private readonly config: InboxConfig;
+  private watchProjection?: WatchWorkflowProjectionService;
 
   constructor(context: PluginInitializerContext<InboxConfig>) {
     this.logger = context.logger.get();
@@ -53,7 +60,7 @@ export class InboxPlugin
 
   setup(
     coreSetup: CoreSetup<InboxStartDependencies, InboxPluginStart>,
-    { features }: InboxSetupDependencies
+    { features, workflowsExtensions }: InboxSetupDependencies
   ): InboxPluginSetup {
     if (!this.config.enabled) {
       this.logger.info('Inbox plugin is disabled');
@@ -61,10 +68,15 @@ export class InboxPlugin
         registerActionProvider: (_provider: InboxActionProvider) => {
           // No-op so providers can unconditionally call this in their own setup().
         },
+        registerWatchWorkflowsClient: (_client: WatchWorkflowsManagementClient) => {
+          // No-op when disabled.
+        },
       };
     }
 
     this.logger.info('Setting up Inbox plugin');
+
+    registerManagedWatchWorkflowOwner({ workflowsExtensions });
 
     features.registerKibanaFeature({
       id: PLUGIN_ID,
@@ -72,10 +84,6 @@ export class InboxPlugin
       order: 1100,
       category: DEFAULT_APP_CATEGORIES.security,
       app: ['kibana', PLUGIN_ID],
-      // `all` grants both the read (list) and the respond (write) API
-      // privileges; `read` grants only the read privilege. This prevents a
-      // read-only user from invoking the POST respond route — before the
-      // split both privileges shared a single `api: [PLUGIN_ID]` entry.
       privileges: {
         all: {
           app: ['kibana', PLUGIN_ID],
@@ -107,25 +115,43 @@ export class InboxPlugin
       logger: this.logger,
       registry,
       getSpaceId: (request) => this.getSpaceId(request),
+      getWatchProjection: () => this.watchProjection,
     });
 
     return {
       registerActionProvider: (provider) => registry.register(provider),
+      registerWatchWorkflowsClient: (client) => {
+        this.watchProjection = new WatchWorkflowProjectionService(client, this.logger);
+        this.logger.info('Watch workflow projection client registered');
+      },
     };
   }
 
   private spaces?: InboxStartDependencies['spaces'];
 
   private getSpaceId(request: KibanaRequest): string {
-    // When the spaces plugin is available (default in Kibana / serverless)
-    // resolve the active space for this request. When it isn't, Kibana is
-    // running single-space so `'default'` is the only possible answer and
-    // providers will receive a truthful value.
     return this.spaces?.spacesService.getSpaceId(request) ?? 'default';
   }
 
   start(_core: CoreStart, plugins: InboxStartDependencies): InboxPluginStart {
     this.spaces = plugins.spaces;
+
+    if (this.config.enabled) {
+      void installStaticWatchWorkflows({
+        enabled: true,
+        workflowsExtensions: plugins.workflowsExtensions,
+        logger: this.logger,
+      }).then(({ failedIds }) => {
+        if (failedIds.length) {
+          this.logger.warn(
+            `Inbox watch managed workflow install completed with failures: ${failedIds.join(', ')}`
+          );
+        } else {
+          this.logger.info('Inbox watch managed workflows installed');
+        }
+      });
+    }
+
     return {};
   }
 

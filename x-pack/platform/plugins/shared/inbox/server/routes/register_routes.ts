@@ -9,12 +9,15 @@ import type { Logger } from '@kbn/logging';
 import type { InboxRouter } from '../types';
 import type { InboxActionRegistry } from '../services/inbox_action_registry';
 import type { InboxSpaceIdResolver } from '../plugin';
+import type { WatchWorkflowProjectionService } from '../services/watches/watch_workflow_projection_service';
 import { registerListInboxActionsRoute } from './actions/list_actions';
 import { registerListInboxActionsHistoryRoute } from './actions/list_history';
 import { registerListInboxActionsHistoryFacetsRoute } from './actions/list_history_facets';
 import { registerRespondToActionRoute } from './actions/respond_to_action';
 import { registerListWatchesRoute } from './watches/list_watches';
 import { registerGetWatchRoute } from './watches/get_watch';
+import { registerCreateWatchRoute } from './watches/create_watch';
+import { registerDeleteWatchRoute } from './watches/delete_watch';
 
 export interface RouteDependencies {
   router: InboxRouter;
@@ -27,6 +30,7 @@ export interface RouteDependencies {
    * targets the wrong execution).
    */
   getSpaceId: InboxSpaceIdResolver;
+  getWatchProjection?: () => WatchWorkflowProjectionService | undefined;
 }
 
 export const registerRoutes = (dependencies: RouteDependencies) => {
@@ -36,4 +40,6 @@ export const registerRoutes = (dependencies: RouteDependencies) => {
   registerRespondToActionRoute(dependencies);
   registerListWatchesRoute(dependencies);
   registerGetWatchRoute(dependencies);
+  registerCreateWatchRoute(dependencies);
+  registerDeleteWatchRoute(dependencies);
 };

@@ -8,35 +8,39 @@
 import { z } from '@kbn/zod/v4';
 import { API_VERSIONS, INTERNAL_API_ACCESS } from '@kbn/inbox-common';
 import { buildRouteValidationWithZod } from '@kbn/zod-helpers/v4';
-import { INBOX_API_PRIVILEGE_READ } from '../../../common';
-import { INBOX_WATCH_URL_TEMPLATE, type GetWatchResponse } from '../../../common/watches';
+import { INBOX_API_PRIVILEGE_RESPOND } from '../../../common';
+import { INBOX_WATCH_URL_TEMPLATE } from '../../../common/watches';
 import type { RouteDependencies } from '../register_routes';
+import {
+  isWatchDeleteForbiddenError,
+  isWatchNotFoundError,
+} from '../../services/watches/watch_errors';
 
-const GetWatchRequestParams = z.object({
+const DeleteWatchRequestParams = z.object({
   watchId: z.string().min(1).max(128),
 });
 
-export const registerGetWatchRoute = ({
+export const registerDeleteWatchRoute = ({
   router,
   logger,
   getSpaceId,
   getWatchProjection,
 }: RouteDependencies) => {
   router.versioned
-    .get({
+    .delete({
       path: INBOX_WATCH_URL_TEMPLATE,
       access: INTERNAL_API_ACCESS,
       security: {
-        authz: { requiredPrivileges: [INBOX_API_PRIVILEGE_READ] },
+        authz: { requiredPrivileges: [INBOX_API_PRIVILEGE_RESPOND] },
       },
-      summary: 'Get a watch by id (workflow projection)',
+      summary: 'Delete a custom (unmanaged) watch workflow',
     })
     .addVersion(
       {
         version: API_VERSIONS.internal.v1,
         validate: {
           request: {
-            params: buildRouteValidationWithZod(GetWatchRequestParams),
+            params: buildRouteValidationWithZod(DeleteWatchRequestParams),
           },
         },
       },
@@ -50,19 +54,19 @@ export const registerGetWatchRoute = ({
             });
           }
           const { watchId } = request.params;
-          const result = await projection.get(watchId, getSpaceId(request));
-          if (!result) {
-            return response.notFound({
-              body: { message: `Watch "${watchId}" not found` },
-            });
-          }
-          const body: GetWatchResponse = result;
-          return response.ok({ body });
+          await projection.deleteCustom(request, watchId, getSpaceId(request));
+          return response.noContent();
         } catch (error) {
-          logger.error(`Failed to get watch: ${error}`);
+          if (isWatchNotFoundError(error)) {
+            return response.notFound({ body: { message: error.message } });
+          }
+          if (isWatchDeleteForbiddenError(error)) {
+            return response.forbidden({ body: { message: error.message } });
+          }
+          logger.error(`Failed to delete watch: ${error}`);
           return response.customError({
             statusCode: 500,
-            body: { message: 'Failed to get watch' },
+            body: { message: 'Failed to delete watch' },
           });
         }
       }

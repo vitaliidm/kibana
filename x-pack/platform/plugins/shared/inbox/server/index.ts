@@ -26,6 +26,8 @@ export type {
   InboxRequestContext,
 } from './types';
 
+export type { WatchWorkflowsManagementClient } from './services/watches/watch_workflows_management_client';
+
 export type {
   InboxActionConflictError,
   InvalidInboxActionSourceIdError,

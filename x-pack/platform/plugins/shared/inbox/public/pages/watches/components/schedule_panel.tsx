@@ -8,12 +8,14 @@
 import React from 'react';
 import { css } from '@emotion/react';
 import {
+  EuiBadge,
   EuiButtonGroup,
   EuiFlexGroup,
   EuiFlexItem,
   EuiFormRow,
   EuiPanel,
   EuiSelect,
+  EuiSpacer,
   EuiText,
   useEuiTheme,
 } from '@elastic/eui';
@@ -22,7 +24,7 @@ import * as i18n from '../translations';
 
 interface SchedulePanelProps {
   watch: Watch;
-  /** POC: local-only; not persisted. */
+  /** POC: local-only projection edit; not written back to workflow YAML yet. */
   onScheduleChange?: (schedule: WatchSchedule) => void;
 }
 
@@ -49,6 +51,38 @@ export const SchedulePanel: React.FC<SchedulePanelProps> = ({ watch, onScheduleC
 
   return (
     <EuiPanel hasBorder paddingSize="m">
+      {watch.triggers.length > 0 ? (
+        <>
+          <EuiText size="xs" color="subdued">
+            <p>{i18n.WORKFLOW_TRIGGERS_LABEL}</p>
+          </EuiText>
+          <EuiSpacer size="xs" />
+          <EuiFlexGroup gutterSize="s" wrap responsive={false}>
+            {watch.triggers.map((trigger) => (
+              <EuiFlexItem grow={false} key={`${trigger.type}-${trigger.summary}`}>
+                <EuiBadge
+                  color="hollow"
+                  iconType={
+                    trigger.type === 'schedule'
+                      ? 'clock'
+                      : trigger.type === 'event'
+                      ? 'bolt'
+                      : 'play'
+                  }
+                >
+                  {trigger.summary}
+                </EuiBadge>
+              </EuiFlexItem>
+            ))}
+          </EuiFlexGroup>
+          <EuiSpacer size="m" />
+          <EuiText size="xs" color="subdued">
+            <p>{i18n.SCHEDULE_PROJECTION_NOTE}</p>
+          </EuiText>
+          <EuiSpacer size="s" />
+        </>
+      ) : null}
+
       <EuiFormRow label={i18n.SCHEDULE_TITLE} fullWidth>
         <EuiButtonGroup
           legend={i18n.SCHEDULE_TITLE}

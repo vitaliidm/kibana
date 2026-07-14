@@ -4,6 +4,11 @@ Local-dev fixtures for exercising the Inbox + Workflows integration end to end.
 
 ## What's here
 
+- `seed_watch_runs.ts` — Triggers manual `/run` for each enabled workflow tagged
+  `watch` so Watches → Recent runs has execution history. Definitions are
+  installed by the Inbox plugin (`system-inbox-watch-*` managed workflows) when
+  `xpack.inbox.enabled: true` — this script does **not** create definitions.
+  Prefer running Floor alone for the sync demo (see **Watch Floor demo** below).
 - `workflows/01_string_input.yml` … `workflows/06_required_with_defaults.yml`
 six minimal workflows, one per field-type case from
 [security-team#16707](https://github.com/elastic/security-team/issues/16707):
@@ -44,6 +49,33 @@ xpack.inbox.enabled: true
 
 Start Kibana + ES locally (`yarn start --no-base-path`).
 
+## Watch Floor demo (org sync)
+
+Floor is the worked example: capabilities are **projected from executable steps**,
+not invented in `with.watch.callables`.
+
+1. Enable Inbox and restart so managed watches install/reconcile (`system-inbox-watch-floor` v3+).
+2. Open `/app/inbox/watches` → click **Watch Floor** → **Agent capabilities** should list **Alert analysis** (from `skill://alert-analysis` in YAML). Catalog cards do not show callables.
+3. Officer/Dark/Deep may show empty capabilities until they add `ai.agent` / `workflow.execute` steps (copy Floor).
+4. Trigger a Floor run (managed workflows are hidden in Workflows UI unless **Show managed workflows** is on):
+   - **Dev Tools Console:**
+     ```http
+     POST kbn://api/workflows/workflow/system-inbox-watch-floor/run
+     {
+       "inputs": {}
+     }
+     ```
+   - **Or script** (runs all enabled `watch`-tagged workflows — Floor hits `ai.agent`):
+     ```bash
+     node --import tsx x-pack/platform/plugins/shared/inbox/scripts/demo/seed_watch_runs.ts
+     ```
+   - **Alert path (preferred narrative):** attach / fire a detection alert so the Floor `alert` trigger runs with real `event` context.
+5. Recent runs should show `watch_policy → triage_alerts → record_reasoning` (not a console stub).
+
+**Stretch (not required for sync):** on `true_positive`, add `workflow.executeAsync` → `system-inbox-watch-officer` so Inbox Actions shows Officer `waitForInput`.
+
+**Next Floor spike:** composable wrap of `system-security-alert-analysis` via `workflow.execute` (AA needs an inputs/manual path first).
+
 ## Run
 
 There are two equivalent ways to seed the demo data — pick whichever fits your workflow.
@@ -58,7 +90,11 @@ without cloning Kibana or running this script directly.
 ### Option B — From this repo
 
 ```bash
+# HITL / Inbox demo workflows
 node --import tsx x-pack/platform/plugins/shared/inbox/scripts/demo/seed_inbox_demo.ts
+
+# Watch catalog recent-runs history (after Inbox managed install)
+node --import tsx x-pack/platform/plugins/shared/inbox/scripts/demo/seed_watch_runs.ts
 ```
 
 Override defaults via env:

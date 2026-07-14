@@ -8,35 +8,40 @@
 import { z } from '@kbn/zod/v4';
 import { API_VERSIONS, INTERNAL_API_ACCESS } from '@kbn/inbox-common';
 import { buildRouteValidationWithZod } from '@kbn/zod-helpers/v4';
-import { INBOX_API_PRIVILEGE_READ } from '../../../common';
-import { INBOX_WATCH_URL_TEMPLATE, type GetWatchResponse } from '../../../common/watches';
+import { INBOX_API_PRIVILEGE_RESPOND } from '../../../common';
+import {
+  INBOX_WATCHES_URL,
+  type CreateWatchRequest,
+  type CreateWatchResponse,
+} from '../../../common/watches';
 import type { RouteDependencies } from '../register_routes';
 
-const GetWatchRequestParams = z.object({
-  watchId: z.string().min(1).max(128),
+const CreateWatchRequestBody = z.object({
+  name: z.string().min(1).max(128),
+  description: z.string().max(2000).optional(),
 });
 
-export const registerGetWatchRoute = ({
+export const registerCreateWatchRoute = ({
   router,
   logger,
   getSpaceId,
   getWatchProjection,
 }: RouteDependencies) => {
   router.versioned
-    .get({
-      path: INBOX_WATCH_URL_TEMPLATE,
+    .post({
+      path: INBOX_WATCHES_URL,
       access: INTERNAL_API_ACCESS,
       security: {
-        authz: { requiredPrivileges: [INBOX_API_PRIVILEGE_READ] },
+        authz: { requiredPrivileges: [INBOX_API_PRIVILEGE_RESPOND] },
       },
-      summary: 'Get a watch by id (workflow projection)',
+      summary: 'Create a custom watch workflow (POC)',
     })
     .addVersion(
       {
         version: API_VERSIONS.internal.v1,
         validate: {
           request: {
-            params: buildRouteValidationWithZod(GetWatchRequestParams),
+            body: buildRouteValidationWithZod(CreateWatchRequestBody),
           },
         },
       },
@@ -49,20 +54,15 @@ export const registerGetWatchRoute = ({
               body: { message: 'Watch projection service is not available' },
             });
           }
-          const { watchId } = request.params;
-          const result = await projection.get(watchId, getSpaceId(request));
-          if (!result) {
-            return response.notFound({
-              body: { message: `Watch "${watchId}" not found` },
-            });
-          }
-          const body: GetWatchResponse = result;
+          const bodyReq = request.body as CreateWatchRequest;
+          const created = await projection.createCustom(request, getSpaceId(request), bodyReq);
+          const body: CreateWatchResponse = created;
           return response.ok({ body });
         } catch (error) {
-          logger.error(`Failed to get watch: ${error}`);
+          logger.error(`Failed to create watch: ${error}`);
           return response.customError({
             statusCode: 500,
-            body: { message: 'Failed to get watch' },
+            body: { message: 'Failed to create watch' },
           });
         }
       }

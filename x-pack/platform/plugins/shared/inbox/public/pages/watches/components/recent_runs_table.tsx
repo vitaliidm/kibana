@@ -7,62 +7,48 @@
 
 import React, { useMemo } from 'react';
 import { EuiBadge, EuiBasicTable, EuiText, type EuiBasicTableColumn } from '@elastic/eui';
-import type { WatchRecentRun, WatchRunAction } from '../../../../common/watches';
+import type { WatchRecentRun } from '../../../../common/watches';
 import * as i18n from '../translations';
 
 interface RecentRunsTableProps {
   runs: WatchRecentRun[];
 }
 
-const ACTION_LABEL: Record<WatchRunAction, string> = {
-  read: i18n.ACTION_READ,
-  draft: i18n.ACTION_DRAFT,
-  gated: i18n.ACTION_GATED,
-  auto: i18n.ACTION_AUTO,
-};
-
-const ACTION_COLOR: Record<WatchRunAction, 'success' | 'primary' | 'warning' | 'accent'> = {
-  read: 'success',
-  draft: 'primary',
-  gated: 'warning',
-  auto: 'accent',
-};
-
 export const RecentRunsTable: React.FC<RecentRunsTableProps> = ({ runs }) => {
   const columns = useMemo<Array<EuiBasicTableColumn<WatchRecentRun>>>(
     () => [
       {
-        field: 'time',
+        field: 'startedAt',
         name: i18n.COL_TIME,
-        width: '90px',
-        render: (time: string) => (
+        width: '160px',
+        render: (startedAt: string) => (
           <EuiText size="s">
-            <code>{time}</code>
+            <code>{startedAt}</code>
           </EuiText>
         ),
       },
       {
-        field: 'workflow',
-        name: i18n.COL_WORKFLOW,
-        truncateText: true,
+        field: 'status',
+        name: i18n.COL_STATUS,
+        width: '120px',
+        render: (status: string) => <EuiBadge color="hollow">{status}</EuiBadge>,
       },
       {
-        field: 'action',
-        name: i18n.COL_ACTION,
-        width: '140px',
-        render: (action: WatchRunAction) => (
-          <EuiBadge color={ACTION_COLOR[action]}>{ACTION_LABEL[action]}</EuiBadge>
-        ),
+        field: 'summary',
+        name: i18n.COL_SUMMARY,
+        truncateText: true,
+        render: (_summary: string, run: WatchRecentRun) => {
+          if (run.steps.length > 0) {
+            return run.steps.map((s) => s.name).join(' → ');
+          }
+          return run.summary;
+        },
       },
       {
-        field: 'what',
-        name: i18n.COL_WHAT,
-        truncateText: true,
-      },
-      {
-        field: 'outcome',
-        name: i18n.COL_OUTCOME,
-        truncateText: true,
+        field: 'triggerType',
+        name: i18n.COL_TRIGGER,
+        width: '120px',
+        render: (triggerType: string | undefined) => triggerType ?? '—',
       },
     ],
     []

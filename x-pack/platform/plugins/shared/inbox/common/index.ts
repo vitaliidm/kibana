@@ -19,13 +19,15 @@ export type {
   ScheduleMode,
   ScopeAccess,
   Watch,
+  WatchAgentStepAttrs,
+  WatchCallableRef,
   WatchMetrics,
   WatchRecentRun,
   WatchRunAction,
   WatchSchedule,
   WatchScope,
-  WorkerRef,
-  WorkerTriggerType,
+  WatchTriggerProjection,
+  WorkflowTriggerType,
 } from './watches';
 export {
   AUTONOMY_LABELS,

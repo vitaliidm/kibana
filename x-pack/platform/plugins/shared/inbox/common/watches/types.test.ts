@@ -5,8 +5,8 @@
  * 2.0.
  */
 
-import { coverageFromSchedule, isOnDutyNow } from './types';
-import type { WatchSchedule } from './types';
+import { compareWatchesForDisplay, coverageFromSchedule, isOnDutyNow } from './types';
+import type { Watch, WatchSchedule } from './types';
 
 describe('coverageFromSchedule', () => {
   it('returns empty coverage when schedule is unset', () => {
@@ -89,5 +89,46 @@ describe('isOnDutyNow', () => {
         12
       )
     ).toBe(false);
+  });
+});
+
+describe('compareWatchesForDisplay', () => {
+  const base = {
+    tags: ['watch'],
+    color: '#000',
+    icon: 'alert',
+    enabled: true,
+    draft: false,
+    managed: true,
+    mandate: 'm',
+    description: '',
+    schedule: {
+      set: true,
+      mode: 'always' as const,
+      from: 0,
+      to: 24,
+      onDemand: false,
+      cadence: 'stream' as const,
+      every: 60,
+      handoff: 'none' as const,
+    },
+    triggers: [],
+    coverage: [[0, 24]] as Array<[number, number]>,
+    scopeSummary: '—',
+    scopes: [],
+    callables: [],
+    autonomyLevel: 1 as const,
+    metrics: { runs7d: null, acceptedPct: null, timeSaved: null, lastRun: null },
+    recentRuns: [],
+  };
+
+  it('orders by sortOrder then name', () => {
+    const watches: Watch[] = [
+      { ...base, id: 'c', name: 'Custom', managed: false, sortOrder: Number.MAX_SAFE_INTEGER },
+      { ...base, id: 'd', name: 'Dark Watch', sortOrder: 30 },
+      { ...base, id: 'f', name: 'Watch Floor', sortOrder: 10 },
+      { ...base, id: 'o', name: 'Watch Officer', sortOrder: 20 },
+    ];
+    expect(watches.sort(compareWatchesForDisplay).map((w) => w.id)).toEqual(['f', 'o', 'd', 'c']);
   });
 });

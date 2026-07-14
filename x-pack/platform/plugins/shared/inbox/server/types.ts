@@ -8,7 +8,12 @@
 import type { IRouter } from '@kbn/core/server';
 import type { FeaturesPluginSetup } from '@kbn/features-plugin/server';
 import type { SpacesPluginStart } from '@kbn/spaces-plugin/server';
+import type {
+  WorkflowsExtensionsServerPluginSetup,
+  WorkflowsExtensionsServerPluginStart,
+} from '@kbn/workflows-extensions/server';
 import type { InboxActionProvider } from './services/inbox_action_provider';
+import type { WatchWorkflowsManagementClient } from './services/watches/watch_workflows_management_client';
 
 /**
  * Public server-side setup contract. Exposed to plugins that depend on the
@@ -24,12 +29,22 @@ export interface InboxPluginSetup {
    * call is a no-op, letting providers register unconditionally.
    */
   registerActionProvider(provider: InboxActionProvider): void;
+
+  /**
+   * Supply the Workflows management API used to project tagged workflows
+   * into the Watches UI. Called by `workflowsManagement` during its setup
+   * (Inbox must not depend on that plugin — that creates a cycle).
+   *
+   * No-op when Inbox is disabled.
+   */
+  registerWatchWorkflowsClient(client: WatchWorkflowsManagementClient): void;
 }
 
 export type InboxPluginStart = Record<string, never>;
 
 export interface InboxSetupDependencies {
   features: FeaturesPluginSetup;
+  workflowsExtensions: WorkflowsExtensionsServerPluginSetup;
 }
 
 export interface InboxStartDependencies {
@@ -40,6 +55,7 @@ export interface InboxStartDependencies {
    * request — never assume `'default'`.
    */
   spaces?: SpacesPluginStart;
+  workflowsExtensions: WorkflowsExtensionsServerPluginStart;
 }
 
 export type InboxRouter = IRouter;

@@ -115,6 +115,10 @@ export class WorkflowsPlugin
       plugins.inbox.registerActionProvider(
         createWorkflowsInboxProvider({ api, logger: this.logger, audit })
       );
+      // Invert the dependency: Inbox must not list workflowsManagement as a
+      // plugin dep (that creates workflowsManagement ↔ inbox). Instead we
+      // push the management API into Inbox for Watches projection.
+      plugins.inbox.registerWatchWorkflowsClient(api);
     }
 
     return {

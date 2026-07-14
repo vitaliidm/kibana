@@ -11,6 +11,7 @@ import {
   EuiBadge,
   EuiButton,
   EuiButtonEmpty,
+  EuiConfirmModal,
   EuiEmptyPrompt,
   EuiFlexGroup,
   EuiFlexItem,
@@ -20,7 +21,6 @@ import {
   EuiPanel,
   EuiRange,
   EuiSpacer,
-  EuiSwitch,
   EuiText,
   EuiTextArea,
   EuiTitle,
@@ -31,19 +31,18 @@ import { useKibana } from '@kbn/kibana-react-plugin/public';
 import {
   AUTONOMY_LABELS,
   coverageFromSchedule,
-  skillLabel,
   type AutonomyLevel,
   type Watch,
+  type WatchCallableRef,
   type WatchSchedule,
-  type WorkerRef,
 } from '../../../common/watches';
-import { useWatch } from '../../hooks/use_watches_api';
+import { useDeleteWatch, useWatch } from '../../hooks/use_watches_api';
+import { AgentCapabilitiesList } from './components/agent_capabilities_list';
 import { AutonomyMeter } from './components/autonomy_meter';
 import { InboxWatchesNav } from './components/inbox_watches_nav';
 import { RecentRunsTable } from './components/recent_runs_table';
 import { RunSparkline } from './components/run_sparkline';
 import { SchedulePanel } from './components/schedule_panel';
-import { WorkflowAssignmentList } from './components/workflow_assignment_list';
 import * as i18n from './translations';
 
 const SCOPE_COLOR: Record<string, string> = {
@@ -58,20 +57,36 @@ export const WatchDetailPage: React.FC = () => {
   const { watchId } = useParams<{ watchId: string }>();
   const { services } = useKibana();
   const { data, isLoading, error, refetch } = useWatch(watchId);
+  const deleteWatch = useDeleteWatch();
 
   const [localWatch, setLocalWatch] = useState<Watch | null>(null);
-  const [localWorkers, setLocalWorkers] = useState<WorkerRef[]>([]);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
   useEffect(() => {
     if (data) {
       setLocalWatch(data.watch);
-      setLocalWorkers(data.workers);
     }
   }, [data]);
 
   const stubToast = useCallback(() => {
     services.notifications?.toasts.addInfo(i18n.POC_STUB_TOAST);
   }, [services.notifications]);
+
+  const onConfirmDelete = useCallback(() => {
+    if (!watchId) return;
+    deleteWatch.mutate(watchId, {
+      onSuccess: () => {
+        services.notifications?.toasts.addSuccess(i18n.DELETE_SUCCESS);
+        history.push('/watches');
+      },
+      onError: () => {
+        services.notifications?.toasts.addError(new Error(i18n.DELETE_FAILED), {
+          title: i18n.DELETE_FAILED,
+        });
+        setIsDeleteConfirmOpen(false);
+      },
+    });
+  }, [deleteWatch, history, services.notifications, watchId]);
 
   const onScheduleChange = useCallback((schedule: WatchSchedule) => {
     setLocalWatch((prev) =>
@@ -89,17 +104,24 @@ export const WatchDetailPage: React.FC = () => {
     setLocalWatch((prev) => (prev ? { ...prev, autonomyLevel: level } : prev));
   }, []);
 
-  const onToggleWorker = useCallback(
-    (workerId: string) => {
-      setLocalWorkers((prev) =>
-        prev.map((w) => (w.id === workerId ? { ...w, enabled: !w.enabled } : w))
-      );
+  const onToggleCallable = useCallback(
+    (callableId: string) => {
+      setLocalWatch((prev) => {
+        if (!prev) return prev;
+        const callables: WatchCallableRef[] = prev.callables.map((c) =>
+          c.id === callableId ? { ...c, enabled: !c.enabled } : c
+        );
+        return { ...prev, callables };
+      });
       stubToast();
     },
     [stubToast]
   );
 
-  const workersOn = useMemo(() => localWorkers.filter((w) => w.enabled).length, [localWorkers]);
+  const callablesOn = useMemo(
+    () => localWatch?.callables.filter((c) => c.enabled).length ?? 0,
+    [localWatch]
+  );
 
   if (isLoading && !localWatch) {
     return (
@@ -180,9 +202,35 @@ export const WatchDetailPage: React.FC = () => {
                 {i18n.DISCARD}
               </EuiButtonEmpty>
             </EuiFlexItem>
+            {!watch.managed ? (
+              <EuiFlexItem grow={false}>
+                <EuiButtonEmpty
+                  color="danger"
+                  onClick={() => setIsDeleteConfirmOpen(true)}
+                  isLoading={deleteWatch.isLoading}
+                >
+                  {i18n.DELETE}
+                </EuiButtonEmpty>
+              </EuiFlexItem>
+            ) : null}
           </EuiFlexGroup>
         </EuiFlexItem>
       </EuiFlexGroup>
+
+      {isDeleteConfirmOpen ? (
+        <EuiConfirmModal
+          title={i18n.DELETE_CONFIRM_TITLE}
+          onCancel={() => setIsDeleteConfirmOpen(false)}
+          onConfirm={onConfirmDelete}
+          cancelButtonText={i18n.DELETE_CANCEL}
+          confirmButtonText={i18n.DELETE_CONFIRM_BUTTON}
+          buttonColor="danger"
+          defaultFocusedButton="confirm"
+          isLoading={deleteWatch.isLoading}
+        >
+          <p>{i18n.deleteConfirmBody(watch.name)}</p>
+        </EuiConfirmModal>
+      ) : null}
 
       <EuiSpacer size="s" />
 
@@ -326,35 +374,21 @@ export const WatchDetailPage: React.FC = () => {
 
       <EuiSpacer size="l" />
 
-      {/* Assigned workflows */}
+      {/* Agent capabilities */}
       <EuiFlexGroup alignItems="baseline" justifyContent="spaceBetween" gutterSize="s">
         <EuiFlexItem>
           <SectionHeading
-            title={i18n.ASSIGNED_WORKFLOWS_TITLE}
-            subtitle={i18n.assignedWorkflowsSubtitle(workersOn, localWorkers.length)}
+            title={i18n.AGENT_CAPABILITIES_TITLE}
+            subtitle={i18n.agentCapabilitiesSubtitle(callablesOn, watch.callables.length)}
           />
         </EuiFlexItem>
         <EuiFlexItem grow={false}>
           <EuiButtonEmpty size="s" iconType="plusInCircle" onClick={stubToast}>
-            {i18n.ASSIGN_WORKFLOW}
+            {i18n.ADD_CAPABILITY}
           </EuiButtonEmpty>
         </EuiFlexItem>
       </EuiFlexGroup>
-      <WorkflowAssignmentList workers={localWorkers} onToggle={onToggleWorker} />
-
-      <EuiSpacer size="l" />
-
-      {/* Skills */}
-      <SectionHeading title={i18n.SKILLS_TITLE} subtitle={i18n.SKILLS_SUBTITLE} />
-      <EuiPanel hasBorder paddingSize="m">
-        <EuiFlexGroup direction="column" gutterSize="s">
-          {watch.skillIds.map((id) => (
-            <EuiFlexItem key={id}>
-              <EuiSwitch label={skillLabel(id)} checked={true} onChange={stubToast} compressed />
-            </EuiFlexItem>
-          ))}
-        </EuiFlexGroup>
-      </EuiPanel>
+      <AgentCapabilitiesList callables={watch.callables} onToggle={onToggleCallable} />
 
       <EuiSpacer size="l" />
 
