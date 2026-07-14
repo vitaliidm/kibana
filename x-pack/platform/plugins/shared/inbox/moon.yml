@@ -32,6 +32,8 @@ dependsOn:
   - '@kbn/core-http-browser'
   - '@kbn/logging-mocks'
   - '@kbn/spaces-plugin'
+  - '@kbn/workflows'
+  - '@kbn/workflows-extensions'
   - '@kbn/zod'
 tags:
   - plugin
