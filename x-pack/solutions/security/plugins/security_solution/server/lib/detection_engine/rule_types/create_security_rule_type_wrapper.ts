@@ -114,8 +114,7 @@ export const createSecurityRuleTypeWrapper: CreateSecurityRuleTypeWrapper =
   }) =>
   (type) => {
     const { alertIgnoreFields: ignoreFields, alertMergeStrategy: mergeStrategy } = config;
-    // Rule preview must stay non-operational: response actions bypass the create/update
-    // authorization checks, so never dispatch them while previewing. See issue #12058.
+    // Rule preview must stay non-operational, similar to regular actions
     const responseActionsService = isPreview ? noop : scheduleNotificationResponseActionsService;
     const persistenceRuleType = createPersistenceRuleTypeWrapper({
       ruleDataClient,
