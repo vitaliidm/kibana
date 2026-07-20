@@ -151,6 +151,20 @@ steps:
       normalized_version: "{{ consts.workflow_version | downcase | replace: ' ', '_' }}"
 
   # ---------------------------------------------------------------------------
+  # Normalise the trigger payload
+  # ---------------------------------------------------------------------------
+  # The alert trigger delivers the batch at top-level `event`. Callers that
+  # invoke this workflow via `workflow.execute` (e.g. the FPR watch) deliver the
+  # same shape under `inputs.event`, because that step type nests its `with.inputs`
+  # rather than unwrapping `event` the way the `.workflows` connector does. Resolve
+  # both shapes here so the rest of the workflow reads one place.
+  - name: resolve_trigger_event
+    type: data.set
+    with:
+      trigger_alerts: "${{ event.alerts | default: inputs.event.alerts | default: [] }}"
+      trigger_rule_id: "{{ event.rule.id | default: inputs.event.rule.id }}"
+
+  # ---------------------------------------------------------------------------
   # Read this space's configuration at run time
   # ---------------------------------------------------------------------------
   # The workflow is installed once in the global space; configuration lives in each space's
@@ -193,7 +207,7 @@ steps:
   - name: loop_over_results
     type: foreach
     if: "${{ variables.workflow_enabled and variables.connector_id != '' }}"
-    foreach: "{{ event.alerts | json }}"
+    foreach: "{{ variables.trigger_alerts | json }}"
     steps:
       # Log a link to the alert for traceability at the start of processing.
       - name: log_alert_link
@@ -284,7 +298,7 @@ steps:
                 bool:
                   filter:
                     - term:
-                        kibana.alert.rule.uuid: "{{event.rule.id}}"
+                        kibana.alert.rule.uuid: "{{ variables.trigger_rule_id }}"
                     - term:
                         kibana.alert.workflow_status: "closed"
                     - range:
@@ -302,7 +316,7 @@ steps:
                 bool:
                   filter:
                     - term:
-                        kibana.alert.rule.uuid: "{{event.rule.id}}"
+                        kibana.alert.rule.uuid: "{{ variables.trigger_rule_id }}"
                     - term:
                         kibana.alert.workflow_status: "closed"
                     - range:
@@ -337,7 +351,7 @@ steps:
                 | STATS close_reason_count = COUNT(*) BY close_reason
                 | SORT close_reason_count DESC
               params:
-                - "{{event.rule.id}}"
+                - "{{ variables.trigger_rule_id }}"
               filter:
                 bool:
                   filter:
@@ -402,7 +416,7 @@ steps:
                 bool:
                   filter:
                     - term:
-                        kibana.alert.rule.uuid: "{{event.rule.id}}"
+                        kibana.alert.rule.uuid: "{{ variables.trigger_rule_id }}"
                     - range:
                         "@timestamp":
                           gte: '{{foreach.item["@timestamp"]}}||-24h'
@@ -482,7 +496,7 @@ steps:
                 bool:
                   filter:
                     - term:
-                        kibana.alert.rule.uuid: "{{event.rule.id}}"
+                        kibana.alert.rule.uuid: "{{ variables.trigger_rule_id }}"
                     - range:
                         "@timestamp":
                           gte: '{{foreach.item["@timestamp"]}}||-7d'
@@ -540,14 +554,14 @@ steps:
                 - "kibana.alert.rule.threat"
               query:
                 term:
-                  kibana.alert.rule.uuid: "{{event.rule.id}}"
+                  kibana.alert.rule.uuid: "{{ variables.trigger_rule_id }}"
 
           - name: get_rule_metadata
             type: data.set
             with:
-              rule_id: "{{event.rule.id}}"
+              rule_id: "{{ variables.trigger_rule_id }}"
               metadata:
-                rule_id: "{{event.rule.id}}"
+                rule_id: "{{ variables.trigger_rule_id }}"
                 rule_name: '{{ steps.get_rule_metadata_source.output.hits.hits[0]._source["kibana.alert.rule.name"] }}'
                 rule_uuid: '{{ steps.get_rule_metadata_source.output.hits.hits[0]._source["kibana.alert.rule.uuid"] }}'
                 rule_description: '{{ steps.get_rule_metadata_source.output.hits.hits[0]._source["kibana.alert.rule.description"] }}'

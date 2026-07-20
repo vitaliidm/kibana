@@ -1,0 +1,459 @@
+version: "1"
+name: Watch Floor · FPR
+description: >
+  False Positive Reduction Watch (Daybreak). Reflects the Jul 15 FPR pipeline
+  flowchart: classify FP alerts (alert-analysis), a configurable auto-mark vs
+  propose-first fork, then per-rule tuning (investigate-rule) behind two HITL
+  gates. Both skills are read-only; marking FP and applying tuning are steps this
+  Watch owns. The last fork is the re-key boundary.
+enabled: true
+tags:
+  - watch
+  - watch-floor
+  - fpr
+settings:
+  timeout: "60m"
+  concurrency:
+    key: "watch-floor-fpr"
+    strategy: drop
+    max: 1
+  on-failure:
+    # Alert-analysis and rule-tuning are independent; one failing must not block the other.
+    continue: true
+triggers:
+  # Batch sweep over accumulated FP-marked alerts (flowchart: "Schedule / interval").
+  - type: scheduled
+    with:
+      every: "60m"
+  # On-demand / analyst mark-as-FP (flowchart: "Manual run / analyst mark-as-FP").
+  - type: manual
+steps:
+  # ---------------------------------------------------------------------------
+  # Watch Orchestrator policy (D10): identity, HITL policy, AI Index, config knobs
+  # ---------------------------------------------------------------------------
+  - name: watch_policy
+    type: data.set
+    with:
+      watch:
+        mandate: False positive reduction
+        autonomyLevel: 3
+        handoff: officer
+        onDemand: false
+        draft: false
+        cadence: sweep
+        every: 60
+        mode: always
+        # Durable memory across runs so rejected tunings don't re-surface (Context Engine).
+        aiIndex: security-investigations
+        ui:
+          color: "#16b3a6"
+          icon: alert
+          order: 15
+        scopeSummary: Security alerts · detection rules
+        scopes:
+          - name: Security alerts
+            access: full
+            label: Read + act
+          - name: Detection rules
+            access: full
+            label: Read + act
+        # Product knobs the flowchart forces (all configurable with sane defaults).
+        config:
+          # The FP fork: high-confidence FPs auto-close inside Worker 1; below this, propose first.
+          fpMode: auto_mark              # auto_mark | propose_first
+          # Rule-tuning selection: only rules with at least this many FP-marked alerts.
+          # Demo: 1 so a single confirmed FP surfaces a tuning proposal (prod default is higher).
+          minFpCountPerRule: 1
+          # Prefer exception over suppression: exception avoids re-key.
+          preferExceptionOverSuppression: true
+          # Re-key edits (query/suppression/threshold) require preview before apply.
+          requirePreviewForRekey: true
+        # Display overrides — capabilities are projected from the executable steps below.
+        callables:
+          - id: alert-analysis
+            name: Alert analysis
+            kind: skill
+            summary: Classify + mark FP (auto-close high confidence)
+            gated: false
+            enabled: true
+          - id: investigate-rule
+            name: Investigate rule
+            kind: skill
+            summary: Noise diagnosis + rule tuning proposal
+            gated: true
+            enabled: true
+
+  # ---------------------------------------------------------------------------
+  # Runtime config (per-space): the connector + agent used to run investigate-rule
+  # ---------------------------------------------------------------------------
+  # Stage 3 runs the read-only investigate-rule skill via `ai.agent`, which needs an
+  # LLM connector and an agent id. Both are per-space and live in the invoking space's
+  # uiSettings — the same settings alert-analysis reads — so read them at run time
+  # rather than hard-coding. When the space has no connector configured, connectorId is
+  # empty and Stage 3 skips the agent (guarded below), leaving Stages 1–2 unaffected.
+  - name: fetch_runtime_config
+    type: kibana.request
+    on-failure:
+      retry:
+        max-attempts: 3
+        delay: 5s
+    with:
+      method: GET
+      path: "/s/{{ workflow.spaceId }}/internal/security_solution/alert_analysis_workflow/runtime_config"
+      headers:
+        kbn-xsrf: string
+        elastic-api-version: "1"
+        Content-Type: application/json
+
+  # ===========================================================================
+  # STAGE 1 — classify + mark FP  (flowchart: collect alerts → alert-analysis → Mark FP)
+  # ===========================================================================
+  # Collect open alerts in a workflow step, then hand them to the shipped
+  # alert-analysis workflow. alert-analysis classifies each alert and
+  # auto-closes high-confidence FPs per the space's runtime config — that IS
+  # the flowchart's "auto-mark: high confidence" branch. Lower-confidence FPs
+  # stay open and fall through to the propose-first gate below.
+  - name: collect_open_alerts
+    type: elasticsearch.search
+    with:
+      index: ".alerts-security.alerts-*"
+      # Just the 10 most recent open alerts.
+      size: 10
+      sort:
+        - "@timestamp": "desc"
+      query:
+        bool:
+          filter:
+            - term:
+                kibana.alert.workflow_status: "open"
+          must_not:
+            # Skip alerts alert-analysis has already processed this space.
+            - term:
+                kibana.alert.workflow_tags: "alert-analysis"
+
+  # Reshape ES hits into the AlertHit shape alert-analysis reads via its alert
+  # trigger: each item is the flattened _source with _id/_index merged in. Built
+  # as a JSON string (no object-merge filter exists) and parsed back to objects.
+  - name: build_alerts_payload
+    type: data.set
+    with:
+      alerts_json: |-
+        [
+        {%- for h in steps.collect_open_alerts.output.hits.hits -%}
+        {% assign src = h._source | json %}{"_id": {{ h._id | json }}, "_index": {{ h._index | json }}, {{ src | slice: 1, 2000000 }}{%- unless forloop.last -%},{%- endunless -%}
+        {%- endfor -%}
+        ]
+
+  # alert-analysis is alert-triggered; workflow.execute feeds its event via the
+  # same inputs.event shape the ".workflows" connector uses. Demo assumption: all
+  # open alerts belong to one rule, so event.rule.id is taken from the first hit.
+  - name: analyze_alerts
+    type: if
+    condition: "${{ steps.collect_open_alerts.output.hits.hits.size > 0 }}"
+    steps:
+      - name: run_alert_analysis
+        type: workflow.execute
+        with:
+          workflow-id: "system-security-alert-analysis"
+          inputs:
+            event:
+              alerts: "${{ steps.build_alerts_payload.output.alerts_json | json_parse }}"
+              rule:
+                id: "{{ steps.collect_open_alerts.output.hits.hits[0]._source['kibana.alert.rule.uuid'] }}"
+                name: "{{ steps.collect_open_alerts.output.hits.hits[0]._source['kibana.alert.rule.name'] }}"
+                tags: []
+                consumer: siem
+                producer: siem
+                ruleTypeId: siem.queryRule
+              spaceId: "{{ workflow.spaceId }}"
+
+  # ===========================================================================
+  # STAGE 2 — confirm only the FPs alert-analysis did NOT auto-close  (conditional HITL)
+  # ===========================================================================
+  # Stage 1 auto-closes high-confidence FPs. This stage harvests any alerts that
+  # stayed OPEN but were still classified false_positive (below the auto-close
+  # confidence band) and asks the analyst to confirm each one. The HITL is
+  # conditional by construction: if Stage 1 auto-marked everything, this harvest
+  # is empty, the foreach body never runs, and no inbox action is created.
+  - name: harvest_fp_candidates
+    type: elasticsearch.esql.query
+    with:
+      query: |-
+        FROM .alerts-security.alerts-* METADATA _id
+        | WHERE `kibana.alert.workflow_status` == "open"
+          AND KQL("kibana.alert.workflow_tags: *classification.false_positive*")
+        | KEEP _id, `kibana.alert.rule.name`
+        | LIMIT 100
+
+  - name: confirm_each_fp
+    type: foreach
+    foreach: "{{ steps.harvest_fp_candidates.output.values | json }}"
+    steps:
+      # FP confirmation proposal → accept / dismiss.
+      - name: confirm_fp
+        type: waitForApproval
+        timeout: "24h"
+        with:
+          message: >-
+            Confirm false positive for alert {{ foreach.item.0 }}
+            (rule: {{ foreach.item.1 }})?
+          approveLabel: Confirm FP
+          rejectLabel: Dismiss
+
+      # Accepted → mark FP (workflow step this Watch owns; skills are read-only).
+      - name: mark_fp
+        type: if
+        condition: "${{ steps.confirm_fp.output.response.approved }}"
+        steps:
+          - name: close_as_false_positive
+            type: kibana.SetAlertsStatus
+            with:
+              status: "closed"
+              reason: "false_positive"
+              signal_ids:
+                - "{{ foreach.item.0 }}"
+
+  # ===========================================================================
+  # STAGE 3 — rule tuning  (flowchart: investigate-rule → tuning proposal → apply)
+  # ===========================================================================
+  # Decoupled from Stage 1 by alert state: keys off closed + false_positive, so
+  # it also picks up manual analyst closes. Groups FP-marked alerts by rule.
+  # KEEP order defines the foreach.item indices used below:
+  #   item.0 = rule uuid  (apply PATCHes the rule by this internal id)
+  #   item.1 = rule name
+  #   item.2 = fp_count
+  #   item.3 = rule_id     (signature id investigate-rule resolves the attachment by)
+  - name: harvest_fp_alerts_by_rule
+    type: elasticsearch.esql.query
+    with:
+      query: |-
+        FROM .alerts-security.alerts-*
+        | WHERE `kibana.alert.workflow_status` == "closed"
+          AND `kibana.alert.workflow_reason` == "false_positive"
+          AND @timestamp >= NOW() - 1 hour
+        | STATS fp_count = COUNT(*) BY `kibana.alert.rule.uuid`, `kibana.alert.rule.name`, `kibana.alert.rule.rule_id`
+        | WHERE fp_count >= 1
+        | KEEP `kibana.alert.rule.uuid`, `kibana.alert.rule.name`, fp_count, `kibana.alert.rule.rule_id`
+        | SORT fp_count DESC
+        | LIMIT 25
+
+  - name: tune_each_rule
+    type: foreach
+    # Skip rule tuning entirely when the space has no LLM connector configured —
+    # investigate-rule runs via ai.agent, which needs one. Stages 1–2 are unaffected.
+    if: "${{ steps.fetch_runtime_config.output.connectorId != '' }}"
+    foreach: "{{ steps.harvest_fp_alerts_by_rule.output.values | json }}"
+    steps:
+      # Stage 3 only tunes rules that are CURRENTLY enabled. The harvest keys off
+      # closed FP alerts, which persist after a rule is disabled/retired — so a
+      # disabled rule would still surface here and produce a stale proposal for a
+      # rule nobody runs. Resolve the rule's live state by its signature rule_id and
+      # gate the tuning body on it. (The alert snapshot's enabled flag is captured at
+      # alert-creation time and can be stale, so read the rule via the API instead.)
+      - name: fetch_rule
+        type: kibana.request
+        on-failure:
+          # Rule deleted / not found → no `enabled` in the body → gate below skips it.
+          continue: true
+        with:
+          method: GET
+          path: "/api/detection_engine/rules?rule_id={{ foreach.item.3 }}"
+          headers:
+            kbn-xsrf: string
+            elastic-api-version: "2023-10-31"
+            Content-Type: application/json
+
+      # Gate the whole tuning body on the rule being currently enabled — checked once
+      # here instead of on every step below. A disabled rule skips diagnosis, HITL,
+      # and apply in one shot.
+      - name: tune_if_enabled
+        type: if
+        condition: "${{ steps.fetch_rule.output.enabled == true }}"
+        steps:
+          # Diagnosis + tuning proposal — the read-only investigate-rule skill, run via
+          # ai.agent (flowchart: "investigate-rule → rule tuning proposal"). The skill
+          # resolves the rule by its signature rule_id, reads its own alerts, diagnoses the
+          # noise, and returns the structured tuning proposal it now emits in pipeline mode
+          # (change_type, summary, current_query/proposed_query, exception_condition,
+          # rekey_required). The skill never applies anything — this Watch owns the apply
+          # step below. Field names match the downstream steps, so the proposal/HITL/apply
+          # stages read steps.diagnose_rule.output.structured_output unchanged.
+          - name: diagnose_rule
+            type: ai.agent
+            agent-id: "{{ steps.fetch_runtime_config.output.agentId }}"
+            connector-id: "{{ steps.fetch_runtime_config.output.connectorId }}"
+            # Persist the investigation as an Agent Builder conversation so the analyst can
+            # open and continue it from the HITL proposal (same createConversation knob and
+            # link pattern alert-analysis uses). Present in output.conversation_id when on.
+            create-conversation: "${{ steps.fetch_runtime_config.output.createConversation }}"
+            on-failure:
+              retry:
+                max-attempts: 2
+                delay: "20s"
+            with:
+              message: |-
+                Use the investigate-rule skill to investigate the detection rule with
+                rule_id "{{ foreach.item.3 }}" (name: {{ foreach.item.1 }}).
+
+                {{ foreach.item.2 }} alert(s) from this rule have been closed as
+                false_positive. Diagnose why the rule is noisy and produce a single,
+                concrete rule tuning proposal for a human analyst to approve and apply.
+
+                This automated pipeline applies query re-keys directly, so prefer a
+                `query` remediation: propose a narrowed KQL query (change_type "query")
+                that excludes the confirmed benign pattern while preserving detection
+                coverage. Only choose another change_type if a query narrowing is
+                genuinely unsafe for this rule.
+
+                Return the structured tuning proposal:
+                - change_type: the single best remediation type (prefer "query"; else
+                  exception | suppression | threshold).
+                - summary: a plain-text explanation naming the rule, the FP count, and the
+                  entity/pattern driving the noise.
+                - current_query / proposed_query: for change_type "query", the exact
+                  before/after KQL with the narrowing clause added; leave proposed_query
+                  empty for other change types.
+                - exception_condition: for change_type "exception", the tightest AND'd
+                  condition over the fields consistent across the confirmed FP pattern.
+                - rekey_required: true for query/suppression/threshold edits, false for an
+                  exception.
+              # Structured output schema investigate-rule populates for this pipeline. Kept
+              # in lockstep with the skill's "Structured Tuning Proposal" section.
+              schema:
+                type: object
+                properties:
+                  change_type:
+                    type: string
+                    enum:
+                      - exception
+                      - suppression
+                      - query
+                      - threshold
+                    description: The single remediation type proposed for the rule.
+                  summary:
+                    type: string
+                    description: Plain-text explanation of the noise and the proposed fix.
+                  current_query:
+                    type: string
+                    description: The rule's current KQL query (for change_type query).
+                  proposed_query:
+                    type: string
+                    description: The proposed KQL query (for change_type query; empty otherwise).
+                  exception_condition:
+                    type: string
+                    description: AND'd exception condition (for change_type exception).
+                  rekey_required:
+                    type: boolean
+                    description: True when the edit re-keys the rule (query/suppression/threshold).
+                required:
+                  - change_type
+                  - summary
+                  - rekey_required
+
+          # Rule tuning proposal (plain-text, not auto-applied). Carries the exact
+          # before/after query so the analyst sees precisely what changes.
+          - name: tuning_proposal
+            type: data.set
+            with:
+              proposal:
+                ruleId: "{{ foreach.item.0 }}"
+                ruleName: "{{ foreach.item.1 }}"
+                fpCount: "{{ foreach.item.2 }}"
+                changeType: "{{ steps.diagnose_rule.output.structured_output.change_type }}"
+                summary: "{{ steps.diagnose_rule.output.structured_output.summary }}"
+                currentQuery: "{{ steps.diagnose_rule.output.structured_output.current_query }}"
+                proposedQuery: "{{ steps.diagnose_rule.output.structured_output.proposed_query }}"
+                exceptionCondition: "{{ steps.diagnose_rule.output.structured_output.exception_condition }}"
+                rekeyRequired: "${{ steps.diagnose_rule.output.structured_output.rekey_required }}"
+                conversationId: "{{ steps.diagnose_rule.output.conversation_id }}"
+
+          # HITL gate #2 — approve / modify / dismiss / escalate. Captures approver
+          # identity for re-key edits (the rule then runs as the approver). The
+          # message shows investigate-rule's proposal and the exact diff being approved.
+          - name: review_tuning
+            type: waitForInput
+            timeout: "72h"
+            with:
+              message: |-
+                Rule tuning proposal for {{ foreach.item.1 }} — {{ steps.diagnose_rule.output.structured_output.change_type }} edit{% if steps.diagnose_rule.output.structured_output.rekey_required %} (re-keys the rule){% endif %}.
+                {{ foreach.item.2 }} alert(s) closed as false positive.
+
+                {{ steps.diagnose_rule.output.structured_output.summary }}
+
+                {% if steps.diagnose_rule.output.structured_output.change_type == "query" -%}
+                Current query:
+                  {{ steps.diagnose_rule.output.structured_output.current_query }}
+                Proposed query:
+                  {{ steps.diagnose_rule.output.structured_output.proposed_query }}
+                {%- else -%}
+                Proposed exception:
+                  {{ steps.diagnose_rule.output.structured_output.exception_condition }}
+                {%- endif %}
+
+                {% if steps.diagnose_rule.output.conversation_id -%}
+                [Continue investigation](/app/agent_builder/conversations/{{ steps.diagnose_rule.output.conversation_id }})
+                {% endif -%}
+                Approve, modify, dismiss, or escalate?
+              schema:
+                type: object
+                properties:
+                  decision:
+                    type: string
+                    enum: [approve, modify, dismiss, escalate]
+                required: [decision]
+
+          # Apply the approved tuning — the re-key boundary (flowchart last diamond).
+          - name: apply_if_approved
+            type: if
+            condition: "${{ steps.review_tuning.output.response.decision == 'approve' }}"
+            steps:
+              # If it's a query edit, update the rule. A query change maps cleanly onto a
+              # rule PATCH and re-keys the rule (which then runs as the approver's identity);
+              # the payload is investigate-rule's proposed_query verbatim.
+              - name: update_rule_if_query
+                type: if
+                condition: >-
+                  ${{ steps.diagnose_rule.output.structured_output.change_type == 'query'
+                  and steps.diagnose_rule.output.structured_output.proposed_query != '' }}
+                steps:
+                  - name: apply_rule_tuning
+                    type: kibana.request
+                    with:
+                      method: PATCH
+                      path: "/api/detection_engine/rules"
+                      headers:
+                        kbn-xsrf: string
+                        elastic-api-version: "2023-10-31"
+                        Content-Type: application/json
+                      body:
+                        id: "{{ foreach.item.0 }}"
+                        query: "{{ steps.diagnose_rule.output.structured_output.proposed_query }}"
+                else:
+                  # Exception / suppression / threshold proposals are not auto-mutated here;
+                  # surface them for the analyst to apply in the Detection Rules UI.
+                  - name: note_manual_remediation
+                    type: data.set
+                    with:
+                      manual_remediation:
+                        ruleId: "{{ foreach.item.0 }}"
+                        ruleName: "{{ foreach.item.1 }}"
+                        changeType: "{{ steps.diagnose_rule.output.structured_output.change_type }}"
+                        note: >-
+                          Approved {{ steps.diagnose_rule.output.structured_output.change_type }}
+                          remediation is not a query edit; apply it in the Detection Rules UI.
+
+  # ===========================================================================
+  # STAGE 4 — record to the Investigation Conversation (D9) → proposal queue
+  # ===========================================================================
+  - name: record_investigation
+    type: data.set
+    with:
+      reasoning:
+        summary: >-
+          FPR run complete. Analyzed alerts, marked confirmed false positives,
+          and staged rule-tuning proposals for review.
+        sections:
+          - title: Rules tuned
+            body: >-
+              {{ steps.harvest_fp_alerts_by_rule.output.values.size | default: 0 }}
+              rule(s) over the FP-count threshold.

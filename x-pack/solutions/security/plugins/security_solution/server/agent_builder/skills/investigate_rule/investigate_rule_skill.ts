@@ -202,6 +202,12 @@ offers to apply one, or hands off to a rule-mutation skill. The exception propos
 is **plain-text guidance the analyst types into the UI themselves** — describing it in a
 structured way is expected; it is not an auto-applied or machine-actionable change.
 
+When this skill is invoked by an automated workflow that requests a structured output
+schema (for example the Watch Floor FPR pipeline), you may **additionally** emit a single
+machine-readable tuning **proposal** (see "Structured Tuning Proposal" below) for a
+downstream human-in-the-loop step to review and apply. Emitting a proposal is a
+recommendation, not an applied change — the skill still never mutates the rule.
+
 The output must always contain these five sections, in order. Use a \`##\` header for each
 section (e.g. \`## Alert Volume\`) — **do not use numbered list items for sections**; tables
 placed inside a list item do not render in the Security UI.
@@ -271,10 +277,46 @@ When you have identified a fix:
 - Describe it in plain text and tell the user how to perform it themselves in the
   Detection Rules UI (e.g., add an exception, narrow the query, adjust the
   threshold, or configure alert suppression).
-- Do **not** offer to make the change, claim you can change the rule, hand off to
-  a mutation skill, or emit an auto-applied / machine-actionable change. (Describing a
-  structured exception in plain text for the analyst to create themselves is fine — that
-  is guidance, not a rule mutation.)
+- Do **not** apply the change yourself, claim you applied it, or hand off to a
+  mutation skill. You may describe a structured exception in plain text, and — in
+  automated pipeline mode — emit a single machine-readable tuning **proposal** (see
+  "Structured Tuning Proposal" below) for a downstream human-in-the-loop step to
+  apply. A proposal is a recommendation, not a rule mutation; the skill never mutates
+  the rule.
+
+---
+
+## Structured Tuning Proposal (automated pipeline mode)
+
+When an automated workflow invokes this skill with a structured output schema (for
+example the Watch Floor FPR pipeline), emit — **in addition to** the five
+human-readable sections above — a single machine-readable tuning proposal that a
+downstream approval step can apply. This does **not** apply anything: the skill stays
+read-only and never mutates the rule; applying the approved proposal is the workflow's
+job.
+
+Propose **exactly one** \`change_type\` — the single best remediation for the confirmed
+pattern — and populate the fields from your diagnosis:
+
+- \`change_type\` — one of \`exception\` (confirmed FP/benign on a specific entity;
+  preferred, no re-key), \`suppression\` (unconfirmed concentration; reduces noise,
+  re-keys), \`query\` (the rule genuinely over-matches and should be narrowed;
+  re-keys), or \`threshold\` (volume/threshold tuning; re-keys).
+- \`summary\` — plain-text explanation grounded in the confirmed dispositions
+  (Signal A) and entity concentration (Signal B): name the rule, the FP count, and the
+  entity/pattern driving the noise.
+- \`current_query\` / \`proposed_query\` — for \`change_type: query\`, the exact
+  before/after KQL, adding the narrowing clause (e.g. \`and not process.name: "7z.exe"\`).
+  Leave \`proposed_query\` empty for non-query change types.
+- \`exception_condition\` — for \`change_type: exception\`, the tightest AND'd condition
+  over the fields consistent across the confirmed pattern (e.g. \`host.name IS host-6 AND
+  user.name IS bob AND process.name IS powershell.exe\`).
+- \`rekey_required\` — \`true\` for \`query\`/\`suppression\`/\`threshold\` (rule-parameter
+  edits re-key the rule), \`false\` for \`exception\` (no re-key).
+
+The proposal must stay consistent with the read-only rules above: prefer an exception for
+confirmed dispositions, and only propose a \`query\` change when the evidence shows the
+rule genuinely over-matches.
 
 ---
 
@@ -310,6 +352,9 @@ export const createInvestigateRuleSkill = (): SkillDefinition<
       'broad query, or a threshold misconfiguration. If no rule attachment is present yet (e.g. the user selected ' +
       'one rule from find-security-rules output), the skill resolves the rule by its rule_id (detection rule signature ID) ' +
       'and creates the attachment before proceeding. ' +
+      'When invoked by an automated workflow with a structured output schema, it can additionally emit a single ' +
+      'machine-readable tuning proposal (change_type, summary, current/proposed query, exception condition, rekey_required) ' +
+      'for a downstream human-in-the-loop apply step; it still never applies the change itself. ' +
       'Do not use for plural list, rank, or count requests for noisy rules; use find-security-rules until a single rule is selected.',
     content: SKILL_CONTENT,
     getRegistryTools: () => [SECURITY_ALERTS_TOOL_ID],

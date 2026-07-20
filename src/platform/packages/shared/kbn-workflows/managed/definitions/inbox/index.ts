@@ -10,10 +10,12 @@
 import WATCH_DARK_YAML from './watch_dark.yaml';
 import WATCH_DEEP_YAML from './watch_deep.yaml';
 import WATCH_FLOOR_YAML from './watch_floor.yaml';
+import WATCH_FLOOR_FPR_YAML from './watch_floor_fpr.yaml';
 import WATCH_OFFICER_YAML from './watch_officer.yaml';
 import type { ManagedWorkflowDefinition } from '../../types';
 
 export const INBOX_WATCH_FLOOR_WORKFLOW_ID = 'system-inbox-watch-floor';
+export const INBOX_WATCH_FLOOR_FPR_WORKFLOW_ID = 'system-inbox-watch-floor-fpr';
 export const INBOX_WATCH_OFFICER_WORKFLOW_ID = 'system-inbox-watch-officer';
 export const INBOX_WATCH_DARK_WORKFLOW_ID = 'system-inbox-watch-dark';
 export const INBOX_WATCH_DEEP_WORKFLOW_ID = 'system-inbox-watch-deep';
@@ -40,6 +42,16 @@ export const INBOX_WATCH_FLOOR_WORKFLOW = {
   version: 4,
   visibility: VISIBILITY,
   yaml: WATCH_FLOOR_YAML,
+} as const satisfies ManagedWorkflowDefinition;
+
+export const INBOX_WATCH_FLOOR_FPR_WORKFLOW = {
+  billable: false,
+  id: INBOX_WATCH_FLOOR_FPR_WORKFLOW_ID,
+  management: MANAGEMENT,
+  pluginId: PLUGIN_ID,
+  version: 13,
+  visibility: VISIBILITY,
+  yaml: WATCH_FLOOR_FPR_YAML,
 } as const satisfies ManagedWorkflowDefinition;
 
 export const INBOX_WATCH_OFFICER_WORKFLOW = {
@@ -74,6 +86,7 @@ export const INBOX_WATCH_DEEP_WORKFLOW = {
 
 export const INBOX_WATCH_WORKFLOWS = [
   INBOX_WATCH_FLOOR_WORKFLOW,
+  INBOX_WATCH_FLOOR_FPR_WORKFLOW,
   INBOX_WATCH_OFFICER_WORKFLOW,
   INBOX_WATCH_DARK_WORKFLOW,
   INBOX_WATCH_DEEP_WORKFLOW,
@@ -81,6 +94,7 @@ export const INBOX_WATCH_WORKFLOWS = [
 
 export const INBOX_WATCH_WORKFLOW_IDS = [
   INBOX_WATCH_FLOOR_WORKFLOW_ID,
+  INBOX_WATCH_FLOOR_FPR_WORKFLOW_ID,
   INBOX_WATCH_OFFICER_WORKFLOW_ID,
   INBOX_WATCH_DARK_WORKFLOW_ID,
   INBOX_WATCH_DEEP_WORKFLOW_ID,

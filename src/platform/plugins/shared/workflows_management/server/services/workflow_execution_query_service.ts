@@ -719,7 +719,18 @@ export class WorkflowExecutionQueryService {
         index: WORKFLOWS_INDEX,
         query: {
           bool: {
-            must: [{ ids: { values: ids } }, { term: { spaceId } }],
+            must: [
+              { ids: { values: ids } },
+              // Managed workflows install globally (spaceId '*'); match both the
+              // current space and global so their paused HITL steps aren't dropped
+              // from the inbox as "orphans".
+              {
+                bool: {
+                  should: [{ term: { spaceId } }, { term: { spaceId: '*' } }],
+                  minimum_should_match: 1,
+                },
+              },
+            ],
             must_not: [{ exists: { field: 'deleted_at' } }],
           },
         },
