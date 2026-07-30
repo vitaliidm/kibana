@@ -95,6 +95,9 @@ export const createWorkflowLiquidEngine = (options?: LiquidOptions): Liquid => {
     renderLimit,
     // Default max object allocations (array ops, string ops) per render
     memoryLimit,
+    // Force UTC for the `date` filter so '{{ "now" | date: "..." }}' always
+    // renders in UTC regardless of server local timezone.
+    timezoneOffset: 0,
   });
   removeDisallowedLiquidTags(engine);
   registerWorkflowLiquidFilters(engine);
