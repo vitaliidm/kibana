@@ -338,9 +338,13 @@ const main = async () => {
   await markAlertsFalsePositive(CONFIG, toMark);
   log('   Done.');
 
-  log(`\n==> 7. Triggering ${WATCH_WORKFLOW_ID}...`);
+  // Wait for the alert index to refresh so Stage 3's harvest query sees the FP status.
+  log('\n==> 7. Waiting 3s for ES index refresh...');
+  await sleep(3_000);
+
+  log(`==> 8. Triggering ${WATCH_WORKFLOW_ID}...`);
   const executionId = await runWorkflow(CONFIG, WATCH_WORKFLOW_ID);
-  log(`   Execution ID: ${executionId}`);
+  log(`    Execution ID: ${executionId}`);
 
   log(`
 ==> All done!
