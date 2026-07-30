@@ -468,6 +468,12 @@ steps:
                   {{ steps.diagnose_rule.output.structured_output.current_query }}
                 Proposed query:
                   {{ steps.diagnose_rule.output.structured_output.proposed_query }}
+
+                {% if steps.preview_before.output.previewId != "" -%}
+                Backtest (invocationCount: 24, last 24 intervals):
+                  Before (current query):  {{ steps.count_before_alerts.output.values[0][0] | default: "n/a" }} alert(s)
+                  After  (proposed query): {{ steps.count_after_alerts.output.values[0][0] | default: "n/a" }} alert(s)
+                {%- endif %}
                 {%- else -%}
                 Proposed exception:
                   {{ steps.diagnose_rule.output.structured_output.exception_condition }}

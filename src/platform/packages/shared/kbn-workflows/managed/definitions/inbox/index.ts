@@ -49,7 +49,7 @@ export const INBOX_WATCH_FLOOR_FPR_WORKFLOW = {
   id: INBOX_WATCH_FLOOR_FPR_WORKFLOW_ID,
   management: MANAGEMENT,
   pluginId: PLUGIN_ID,
-  version: 15,
+  version: 17,
   visibility: VISIBILITY,
   yaml: WATCH_FLOOR_FPR_YAML,
 } as const satisfies ManagedWorkflowDefinition;
