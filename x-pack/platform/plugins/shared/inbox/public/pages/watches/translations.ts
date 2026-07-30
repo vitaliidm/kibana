@@ -397,3 +397,15 @@ export const KIND_SKILL = i18n.translate('xpack.inbox.watches.capability.kind.sk
 export const KIND_WORKFLOW = i18n.translate('xpack.inbox.watches.capability.kind.workflow', {
   defaultMessage: 'Workflow',
 });
+
+export const RUN_NOW = i18n.translate('xpack.inbox.watches.detail.runNow', {
+  defaultMessage: 'Run now',
+});
+
+export const RUN_NOW_SUCCESS = i18n.translate('xpack.inbox.watches.detail.runNow.success', {
+  defaultMessage: 'Watch triggered. Check the workflow executions view for progress.',
+});
+
+export const RUN_NOW_FAILED = i18n.translate('xpack.inbox.watches.detail.runNow.failed', {
+  defaultMessage: 'Failed to trigger watch run.',
+});

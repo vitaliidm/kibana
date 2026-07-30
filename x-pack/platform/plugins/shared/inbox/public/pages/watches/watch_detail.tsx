@@ -36,7 +36,7 @@ import {
   type WatchCallableRef,
   type WatchSchedule,
 } from '../../../common/watches';
-import { useDeleteWatch, useWatch } from '../../hooks/use_watches_api';
+import { useDeleteWatch, useRunWatch, useWatch } from '../../hooks/use_watches_api';
 import { AgentCapabilitiesList } from './components/agent_capabilities_list';
 import { AutonomyMeter } from './components/autonomy_meter';
 import { InboxWatchesNav } from './components/inbox_watches_nav';
@@ -58,6 +58,7 @@ export const WatchDetailPage: React.FC = () => {
   const { services } = useKibana();
   const { data, isLoading, error, refetch } = useWatch(watchId);
   const deleteWatch = useDeleteWatch();
+  const runWatch = useRunWatch();
 
   const [localWatch, setLocalWatch] = useState<Watch | null>(null);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
@@ -87,6 +88,20 @@ export const WatchDetailPage: React.FC = () => {
       },
     });
   }, [deleteWatch, history, services.notifications, watchId]);
+
+  const onRunNow = useCallback(() => {
+    if (!watchId) return;
+    runWatch.mutate(watchId, {
+      onSuccess: () => {
+        services.notifications?.toasts.addSuccess(i18n.RUN_NOW_SUCCESS);
+      },
+      onError: () => {
+        services.notifications?.toasts.addError(new Error(i18n.RUN_NOW_FAILED), {
+          title: i18n.RUN_NOW_FAILED,
+        });
+      },
+    });
+  }, [runWatch, services.notifications, watchId]);
 
   const onScheduleChange = useCallback((schedule: WatchSchedule) => {
     setLocalWatch((prev) =>
@@ -192,6 +207,11 @@ export const WatchDetailPage: React.FC = () => {
         </EuiFlexItem>
         <EuiFlexItem grow={false}>
           <EuiFlexGroup gutterSize="s" responsive={false}>
+            <EuiFlexItem grow={false}>
+              <EuiButtonEmpty iconType="play" onClick={onRunNow} isLoading={runWatch.isLoading}>
+                {i18n.RUN_NOW}
+              </EuiButtonEmpty>
+            </EuiFlexItem>
             <EuiFlexItem grow={false}>
               <EuiButton fill onClick={stubToast}>
                 {i18n.SAVE}

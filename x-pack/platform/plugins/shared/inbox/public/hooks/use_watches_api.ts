@@ -93,3 +93,15 @@ export const useDeleteWatch = () => {
     },
   });
 };
+
+export const useRunWatch = () => {
+  const { services } = useKibana();
+
+  return useMutation({
+    mutationFn: async (watchId: string): Promise<{ workflowExecutionId: string }> =>
+      services.http!.post<{ workflowExecutionId: string }>(
+        `/api/workflows/workflow/${encodeURIComponent(watchId)}/run`,
+        { version: '2023-10-31', body: JSON.stringify({ inputs: {} }) }
+      ),
+  });
+};
