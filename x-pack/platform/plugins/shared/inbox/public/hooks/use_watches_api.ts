@@ -105,3 +105,16 @@ export const useRunWatch = () => {
       ),
   });
 };
+
+export const useCancelExecution = () => {
+  const { services } = useKibana();
+
+  return useMutation({
+    mutationFn: async (executionId: string): Promise<void> => {
+      await services.http!.post(
+        `/api/workflows/executions/${encodeURIComponent(executionId)}/cancel`,
+        { version: '2023-10-31' }
+      );
+    },
+  });
+};

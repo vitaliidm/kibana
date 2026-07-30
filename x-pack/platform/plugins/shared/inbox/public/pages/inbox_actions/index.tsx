@@ -28,6 +28,7 @@ import {
 import type { InboxAction, InboxActionStatus } from '@kbn/inbox-common';
 import { DEFAULT_INBOX_ACTIONS_PER_PAGE } from '@kbn/inbox-common';
 import { useInboxActions } from '../../hooks/use_inbox_api';
+import { useCancelExecution } from '../../hooks/use_watches_api';
 import { InboxHistoryFeed } from './components/inbox_history_feed';
 import { InboxReasoning } from './components/inbox_reasoning';
 import { RespondFlyout } from './components/respond_flyout';
@@ -47,11 +48,18 @@ const STATUS_LABEL: Record<InboxActionStatus, string> = {
   rejected: i18n.STATUS_REJECTED,
 };
 
+/** source_id format: `workflowId:executionId:stepHash` — extract the middle segment */
+const extractExecutionId = (sourceId: string): string | null => {
+  const parts = sourceId.split(':');
+  return parts.length >= 2 ? parts[1] : null;
+};
+
 export const InboxActionsPage: React.FC = () => {
   const { euiTheme } = useEuiTheme();
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(DEFAULT_INBOX_ACTIONS_PER_PAGE);
   const [activeAction, setActiveAction] = useState<InboxAction | null>(null);
+  const cancelExecution = useCancelExecution();
   // Inline reasoning expansion, mirroring the Respond flyout: rows whose
   // backing step carried a soft-interface `reasoning` blob can expand it
   // in place so analysts can triage without opening the flyout.
@@ -180,10 +188,25 @@ export const InboxActionsPage: React.FC = () => {
             enabled: (item: InboxAction) => item.status === 'pending',
             onClick: (item: InboxAction) => setActiveAction(item),
           },
+          {
+            name: i18n.CANCEL_EXECUTION_LABEL,
+            description: i18n.CANCEL_EXECUTION_DESCRIPTION,
+            icon: 'cross',
+            type: 'icon',
+            color: 'danger',
+            'data-test-subj': 'inboxActionCancelButton',
+            enabled: (item: InboxAction) =>
+              item.status === 'pending' && extractExecutionId(item.source_id) !== null,
+            onClick: (item: InboxAction) => {
+              const executionId = extractExecutionId(item.source_id);
+              if (!executionId) return;
+              cancelExecution.mutate(executionId);
+            },
+          },
         ],
       },
     ],
-    [expandedRows, toggleReasoning]
+    [cancelExecution, expandedRows, toggleReasoning]
   );
 
   const pagination = {

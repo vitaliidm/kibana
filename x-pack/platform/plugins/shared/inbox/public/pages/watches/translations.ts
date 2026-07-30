@@ -409,3 +409,17 @@ export const RUN_NOW_SUCCESS = i18n.translate('xpack.inbox.watches.detail.runNow
 export const RUN_NOW_FAILED = i18n.translate('xpack.inbox.watches.detail.runNow.failed', {
   defaultMessage: 'Failed to trigger watch run.',
 });
+
+export const CANCEL_RUN = i18n.translate('xpack.inbox.watches.detail.recentRuns.cancel', {
+  defaultMessage: 'Cancel',
+});
+
+export const CANCEL_RUN_SUCCESS = i18n.translate(
+  'xpack.inbox.watches.detail.recentRuns.cancel.success',
+  { defaultMessage: 'Execution cancelled.' }
+);
+
+export const CANCEL_RUN_FAILED = i18n.translate(
+  'xpack.inbox.watches.detail.recentRuns.cancel.failed',
+  { defaultMessage: 'Failed to cancel execution.' }
+);

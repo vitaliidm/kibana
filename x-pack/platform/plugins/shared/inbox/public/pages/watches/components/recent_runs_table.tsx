@@ -6,15 +6,29 @@
  */
 
 import React, { useMemo } from 'react';
-import { EuiBadge, EuiBasicTable, EuiText, type EuiBasicTableColumn } from '@elastic/eui';
+import {
+  EuiBadge,
+  EuiBasicTable,
+  EuiButtonEmpty,
+  EuiText,
+  type EuiBasicTableColumn,
+} from '@elastic/eui';
 import type { WatchRecentRun } from '../../../../common/watches';
 import * as i18n from '../translations';
 
+const CANCELLABLE_STATUSES = new Set(['running', 'waiting_for_input']);
+
 interface RecentRunsTableProps {
   runs: WatchRecentRun[];
+  onCancel?: (executionId: string) => void;
+  cancellingId?: string | null;
 }
 
-export const RecentRunsTable: React.FC<RecentRunsTableProps> = ({ runs }) => {
+export const RecentRunsTable: React.FC<RecentRunsTableProps> = ({
+  runs,
+  onCancel,
+  cancellingId,
+}) => {
   const columns = useMemo<Array<EuiBasicTableColumn<WatchRecentRun>>>(
     () => [
       {
@@ -50,8 +64,29 @@ export const RecentRunsTable: React.FC<RecentRunsTableProps> = ({ runs }) => {
         width: '120px',
         render: (triggerType: string | undefined) => triggerType ?? '—',
       },
+      ...(onCancel
+        ? [
+            {
+              name: '',
+              width: '80px',
+              render: (run: WatchRecentRun) => {
+                if (!CANCELLABLE_STATUSES.has(run.status)) return null;
+                return (
+                  <EuiButtonEmpty
+                    size="xs"
+                    color="danger"
+                    isLoading={cancellingId === run.executionId}
+                    onClick={() => onCancel(run.executionId)}
+                  >
+                    {i18n.CANCEL_RUN}
+                  </EuiButtonEmpty>
+                );
+              },
+            } as EuiBasicTableColumn<WatchRecentRun>,
+          ]
+        : []),
     ],
-    []
+    [onCancel, cancellingId]
   );
 
   if (runs.length === 0) {
@@ -62,5 +97,12 @@ export const RecentRunsTable: React.FC<RecentRunsTableProps> = ({ runs }) => {
     );
   }
 
-  return <EuiBasicTable items={runs} columns={columns} tableLayout="auto" />;
+  return (
+    <EuiBasicTable
+      tableCaption={i18n.RECENT_RUNS_TITLE}
+      items={runs}
+      columns={columns}
+      tableLayout="auto"
+    />
+  );
 };

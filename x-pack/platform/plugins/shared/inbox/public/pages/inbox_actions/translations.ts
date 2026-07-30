@@ -89,6 +89,20 @@ export const RESPOND_ACTION_DESCRIPTION = i18n.translate(
   }
 );
 
+export const CANCEL_EXECUTION_LABEL = i18n.translate(
+  'xpack.inbox.actionsPage.cancelExecutionAction',
+  {
+    defaultMessage: 'Cancel run',
+  }
+);
+
+export const CANCEL_EXECUTION_DESCRIPTION = i18n.translate(
+  'xpack.inbox.actionsPage.cancelExecutionActionDescription',
+  {
+    defaultMessage: 'Cancel the underlying workflow execution',
+  }
+);
+
 export const FLYOUT_TITLE = i18n.translate('xpack.inbox.actionsPage.flyout.title', {
   defaultMessage: 'Respond to action',
 });

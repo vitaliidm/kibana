@@ -36,7 +36,12 @@ import {
   type WatchCallableRef,
   type WatchSchedule,
 } from '../../../common/watches';
-import { useDeleteWatch, useRunWatch, useWatch } from '../../hooks/use_watches_api';
+import {
+  useCancelExecution,
+  useDeleteWatch,
+  useRunWatch,
+  useWatch,
+} from '../../hooks/use_watches_api';
 import { AgentCapabilitiesList } from './components/agent_capabilities_list';
 import { AutonomyMeter } from './components/autonomy_meter';
 import { InboxWatchesNav } from './components/inbox_watches_nav';
@@ -59,8 +64,10 @@ export const WatchDetailPage: React.FC = () => {
   const { data, isLoading, error, refetch } = useWatch(watchId);
   const deleteWatch = useDeleteWatch();
   const runWatch = useRunWatch();
+  const cancelExecution = useCancelExecution();
 
   const [localWatch, setLocalWatch] = useState<Watch | null>(null);
+  const [cancellingExecutionId, setCancellingExecutionId] = useState<string | null>(null);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
   useEffect(() => {
@@ -102,6 +109,27 @@ export const WatchDetailPage: React.FC = () => {
       },
     });
   }, [runWatch, services.notifications, watchId]);
+
+  const onCancelRun = useCallback(
+    (executionId: string) => {
+      setCancellingExecutionId(executionId);
+      cancelExecution.mutate(executionId, {
+        onSuccess: () => {
+          services.notifications?.toasts.addSuccess(i18n.CANCEL_RUN_SUCCESS);
+          refetch();
+        },
+        onError: () => {
+          services.notifications?.toasts.addError(new Error(i18n.CANCEL_RUN_FAILED), {
+            title: i18n.CANCEL_RUN_FAILED,
+          });
+        },
+        onSettled: () => {
+          setCancellingExecutionId(null);
+        },
+      });
+    },
+    [cancelExecution, refetch, services.notifications]
+  );
 
   const onScheduleChange = useCallback((schedule: WatchSchedule) => {
     setLocalWatch((prev) =>
@@ -443,7 +471,11 @@ export const WatchDetailPage: React.FC = () => {
         </EuiFlexItem>
       </EuiFlexGroup>
       <EuiPanel hasBorder paddingSize="m">
-        <RecentRunsTable runs={watch.recentRuns} />
+        <RecentRunsTable
+          runs={watch.recentRuns}
+          onCancel={onCancelRun}
+          cancellingId={cancellingExecutionId}
+        />
       </EuiPanel>
     </EuiPageSection>
   );
