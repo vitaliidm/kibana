@@ -143,10 +143,22 @@ const ensureDataStream = async (config: SeedConfig) => {
   }
 };
 
-const seedRawEvents = async (config: SeedConfig, count = 20) => {
+// Legitimate-looking PowerShell commands that are NOT false positives.
+// These should still fire after the proposed query tightening (no -enc flag).
+const LEGITIMATE_COMMANDS = [
+  'powershell.exe -NoProfile Get-Process',
+  'powershell.exe -NonInteractive -Command Invoke-WebRequest',
+  'powershell.exe Get-EventLog -LogName Security',
+  'powershell.exe -File C:\\scripts\\backup.ps1',
+  'powershell.exe Set-ExecutionPolicy RemoteSigned',
+];
+
+const seedRawEvents = async (config: SeedConfig, fpCount = 20, legitimateCount = 5) => {
   const now = Date.now();
   const lines: string[] = [];
-  for (let i = 0; i < count; i++) {
+
+  // FP events: encoded commands that the proposed query will exclude
+  for (let i = 0; i < fpCount; i++) {
     lines.push(JSON.stringify({ create: { _index: DEMO_EVENT_INDEX } }));
     lines.push(
       JSON.stringify({
@@ -164,6 +176,25 @@ const seedRawEvents = async (config: SeedConfig, count = 20) => {
       })
     );
   }
+
+  // Legitimate events: real-looking commands the proposed query still catches
+  for (let i = 0; i < legitimateCount; i++) {
+    lines.push(JSON.stringify({ create: { _index: DEMO_EVENT_INDEX } }));
+    lines.push(
+      JSON.stringify({
+        '@timestamp': new Date(now - (fpCount + i) * 60_000).toISOString(),
+        'event.kind': 'event',
+        'event.category': ['process'],
+        'event.type': ['start'],
+        'host.name': `prod-host-${(i % 2) + 1}`,
+        'user.name': `analyst-${i + 1}`,
+        'process.name': 'powershell.exe',
+        'process.command_line': LEGITIMATE_COMMANDS[i % LEGITIMATE_COMMANDS.length],
+        message: `Legitimate PowerShell event ${i}`,
+      })
+    );
+  }
+
   const res = await fetch(`${config.esUrl}/_bulk`, {
     method: 'POST',
     headers: esHeaders(config),
@@ -274,8 +305,8 @@ const main = async () => {
 
   log('\n==> 3. Indexing synthetic events into ES...');
   await ensureDataStream(CONFIG);
-  await seedRawEvents(CONFIG, 20);
-  log('   Indexed 20 events.');
+  await seedRawEvents(CONFIG, 20, 5);
+  log('   Indexed 25 events (20 FP-pattern encoded commands + 5 legitimate).');
 
   log('\n==> 4. Triggering rule execution now...');
   await runRuleSoon(CONFIG, rule.id);
