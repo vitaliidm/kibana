@@ -1,0 +1,139 @@
+version: "1"
+name: Rule Backtest
+description: >
+  Before/after detection rule preview backtest. Runs the rule preview API twice
+  in parallel — once with the current query, once with the proposed query — over
+  the same time window, counts the alerts each produces in the preview index,
+  and returns { before_count, after_count }. Reusable: any tuning watch calls it
+  via workflow.execute instead of inlining the preview/count steps.
+enabled: true
+tags:
+  - fpr
+  - backtest
+triggers:
+  - type: manual
+inputs:
+  - name: rule_type
+    type: string
+    required: true
+  - name: rule_name
+    type: string
+    required: true
+  - name: rule_description
+    type: string
+    default: backtest
+  - name: current_query
+    type: string
+    required: true
+  - name: proposed_query
+    type: string
+    required: true
+  - name: language
+    type: string
+    default: kuery
+  - name: index
+    type: array
+    required: true
+  - name: risk_score
+    type: number
+    required: true
+  - name: severity
+    type: string
+    required: true
+  - name: interval
+    type: string
+    required: true
+  - name: invocation_count
+    type: number
+    default: 24
+steps:
+  # Both previews hit the same API with the same timeframe; only the query
+  # differs, so they are independent and run as parallel branches. Each branch
+  # is a straight line (preview → count) — the engine rejects nested flow
+  # control inside parallel branches, so the count runs unconditionally: when a
+  # preview fails (on-failure: continue), its previewId renders empty and the
+  # count query matches nothing, yielding 0.
+  - name: run_previews
+    type: parallel
+    branches:
+      - name: before
+        steps:
+          - name: preview_before
+            type: kibana.request
+            on-failure:
+              continue: true
+            with:
+              method: POST
+              path: "/api/detection_engine/rules/preview"
+              headers:
+                kbn-xsrf: string
+                elastic-api-version: "2023-10-31"
+                Content-Type: application/json
+              body:
+                type: "{{ inputs.rule_type }}"
+                name: "{{ inputs.rule_name }}"
+                description: "{{ inputs.rule_description }}"
+                query: "{{ inputs.current_query }}"
+                language: "{{ inputs.language }}"
+                index: "${{ inputs.index }}"
+                risk_score: "${{ inputs.risk_score }}"
+                severity: "{{ inputs.severity }}"
+                interval: "{{ inputs.interval }}"
+                invocationCount: "${{ inputs.invocation_count }}"
+                timeframeEnd: "{{ 'now' | date: '%Y-%m-%dT%H:%M:%SZ' }}"
+
+          # Last step of the branch — its output IS the branch output surfaced
+          # at steps.run_previews.output.branches.before.output.
+          - name: count_before
+            type: elasticsearch.esql.query
+            on-failure:
+              continue: true
+            with:
+              query: |-
+                FROM .preview.alerts-security.alerts-{{ workflow.spaceId }}
+                | WHERE `kibana.alert.rule.uuid` == "{{ steps.preview_before.output.previewId }}"
+                | STATS count = COUNT(*)
+
+      - name: after
+        steps:
+          - name: preview_after
+            type: kibana.request
+            on-failure:
+              continue: true
+            with:
+              method: POST
+              path: "/api/detection_engine/rules/preview"
+              headers:
+                kbn-xsrf: string
+                elastic-api-version: "2023-10-31"
+                Content-Type: application/json
+              body:
+                type: "{{ inputs.rule_type }}"
+                name: "{{ inputs.rule_name }}"
+                description: "{{ inputs.rule_description }}"
+                query: "{{ inputs.proposed_query }}"
+                language: "{{ inputs.language }}"
+                index: "${{ inputs.index }}"
+                risk_score: "${{ inputs.risk_score }}"
+                severity: "{{ inputs.severity }}"
+                interval: "{{ inputs.interval }}"
+                invocationCount: "${{ inputs.invocation_count }}"
+                timeframeEnd: "{{ 'now' | date: '%Y-%m-%dT%H:%M:%SZ' }}"
+
+          - name: count_after
+            type: elasticsearch.esql.query
+            on-failure:
+              continue: true
+            with:
+              query: |-
+                FROM .preview.alerts-security.alerts-{{ workflow.spaceId }}
+                | WHERE `kibana.alert.rule.uuid` == "{{ steps.preview_after.output.previewId }}"
+                | STATS count = COUNT(*)
+
+  # workflow.output sets the execution-level output the parent's
+  # workflow.execute step returns (preferred over last-step output).
+  - name: result
+    type: workflow.output
+    with:
+      before_count: '{{ steps.run_previews.output.branches.before.output.values[0][0] | default: "n/a" }}'
+      after_count: '{{ steps.run_previews.output.branches.after.output.values[0][0] | default: "n/a" }}'
