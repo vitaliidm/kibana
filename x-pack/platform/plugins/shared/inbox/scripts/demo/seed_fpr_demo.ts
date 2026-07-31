@@ -219,22 +219,23 @@ const runRuleSoon = async (config: SeedConfig, ruleId: string) => {
 const searchAlerts = async (
   config: SeedConfig,
   status: string,
-  size: number
+  size: number,
+  createdAfter?: Date
 ): Promise<Array<{ _id: string }>> => {
+  const filters: unknown[] = [
+    { term: { 'kibana.alert.rule.rule_id': DEMO_RULE_ID } },
+    { term: { 'kibana.alert.workflow_status': status } },
+  ];
+  if (createdAfter) {
+    filters.push({ range: { '@timestamp': { gte: createdAfter.toISOString() } } });
+  }
   const res = await fetch(
     `${config.kibanaUrl}${spacePrefix(config)}/internal/detection_engine/unified_alerts/search`,
     {
       method: 'POST',
       headers: kbHeaders(config, '1'),
       body: JSON.stringify({
-        query: {
-          bool: {
-            filter: [
-              { term: { 'kibana.alert.rule.rule_id': DEMO_RULE_ID } },
-              { term: { 'kibana.alert.workflow_status': status } },
-            ],
-          },
-        },
+        query: { bool: { filter: filters } },
         size,
         sort: [{ '@timestamp': { order: 'desc' } }],
       }),
@@ -313,11 +314,12 @@ const main = async () => {
   log('   Rule scheduled to run immediately.');
 
   log(`\n==> 5. Waiting for open alerts (up to ${POLL_TIMEOUT_MS / 1000}s)...`);
+  const ruleRunStart = new Date();
   const deadline = Date.now() + POLL_TIMEOUT_MS;
   let openAlerts: Array<{ _id: string }> = [];
 
   while (Date.now() < deadline) {
-    openAlerts = await searchAlerts(CONFIG, 'open', FP_COUNT);
+    openAlerts = await searchAlerts(CONFIG, 'open', FP_COUNT, ruleRunStart);
     if (openAlerts.length >= 1) {
       log(`   Found ${openAlerts.length} open alert(s).`);
       break;
