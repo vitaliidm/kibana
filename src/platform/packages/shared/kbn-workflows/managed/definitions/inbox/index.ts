@@ -96,7 +96,7 @@ export const INBOX_RULE_BACKTEST_WORKFLOW = {
   id: INBOX_RULE_BACKTEST_WORKFLOW_ID,
   management: MANAGEMENT,
   pluginId: PLUGIN_ID,
-  version: 1,
+  version: 2,
   yaml: RULE_BACKTEST_YAML,
 } as const satisfies ManagedWorkflowDefinition;
 

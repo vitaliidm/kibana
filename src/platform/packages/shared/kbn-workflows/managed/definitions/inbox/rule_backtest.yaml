@@ -49,19 +49,18 @@ inputs:
 steps:
   # Both previews hit the same API with the same timeframe; only the query
   # differs, so they are independent and run as parallel branches. Each branch
-  # is a straight line (preview → count) — the engine rejects nested flow
-  # control inside parallel branches, so the count runs unconditionally: when a
-  # preview fails (on-failure: continue), its previewId renders empty and the
-  # count query matches nothing, yielding 0.
+  # must be a straight line — the graph build rejects nested flow control AND
+  # step-level on-failure/timeout inside parallel branches — so error tolerance
+  # lives on the parallel step itself: `mode: settled` lets a failed branch
+  # surface as "n/a" in the output instead of failing the whole backtest.
   - name: run_previews
     type: parallel
+    mode: settled
     branches:
       - name: before
         steps:
           - name: preview_before
             type: kibana.request
-            on-failure:
-              continue: true
             with:
               method: POST
               path: "/api/detection_engine/rules/preview"
@@ -86,8 +85,6 @@ steps:
           # at steps.run_previews.output.branches.before.output.
           - name: count_before
             type: elasticsearch.esql.query
-            on-failure:
-              continue: true
             with:
               query: |-
                 FROM .preview.alerts-security.alerts-{{ workflow.spaceId }}
@@ -98,8 +95,6 @@ steps:
         steps:
           - name: preview_after
             type: kibana.request
-            on-failure:
-              continue: true
             with:
               method: POST
               path: "/api/detection_engine/rules/preview"
@@ -122,8 +117,6 @@ steps:
 
           - name: count_after
             type: elasticsearch.esql.query
-            on-failure:
-              continue: true
             with:
               query: |-
                 FROM .preview.alerts-security.alerts-{{ workflow.spaceId }}
